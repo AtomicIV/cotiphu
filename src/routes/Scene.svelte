@@ -1,18 +1,15 @@
 <script>
-    import { T } from '@threlte/core';
+    import { T, useTask } from '@threlte/core';
     import { OrbitControls, Environment, ContactShadows, HTML } from '@threlte/extras';
     import { tweened } from 'svelte/motion';
     import { cubicInOut } from 'svelte/easing';
     
     let { cells = [], players = [], ownership = {} } = $props();
     
-    // Animation targets for players
-    // We can map players to their visual positions.
     const boardSize = 7;
-    const spacing = 1.25;
+    const spacing = 1.3;
     const offset = (boardSize - 1) * spacing / 2;
 
-    // Helper to calculate X and Z coordinates based on 7x7 grid
     function getCellCoord(index) {
         if (!cells[index]) return { x: 0, z: 0 };
         const r = cells[index].r - 1;
@@ -23,43 +20,47 @@
         };
     }
 
-    // Colors mapping
-    const getCellColor = (cell, ownerId) => {
+    const getCellColor = (cell) => {
         if (cell.type === 'start') return '#2ed573';
         if (cell.type === 'prison') return '#eccc68';
         if (cell.type === 'chance') return '#ffa502';
         if (cell.type === 'party') return '#ff4757';
         if (cell.type === 'free') return '#7bed9f';
-        if (ownerId && players.find(p => p.id === ownerId)) {
-            return players.find(p => p.id === ownerId).color;
-        }
-        return '#f1f2f6';
+        return '#f1f2f6'; // Mặc định nền đất trắng/xám
+    };
+
+    // Để lấy màu của owner
+    const getOwnerColor = (ownerId) => {
+        const owner = players.find(p => p.id === ownerId);
+        return owner ? owner.color : '#bdc3c7';
     };
 
 </script>
 
-<!-- Camera setup for precise Isometric look -->
-<T.PerspectiveCamera
+<!-- Góc nhìn Isometric hoàn hảo 100% giống game 2D/3D lai -->
+<T.OrthographicCamera
     makeDefault
-    position={[20, 16, 20]}
-    fov={35}
+    position={[20, 20, 20]}
+    zoom={45}
     on:create={({ ref }) => {
         ref.lookAt(0, 0, 0);
     }}
 >
-    <!-- Mượt mà, giới hạn xoay góc chết -->
+    <!-- Khóa Camera để góc nhìn giống hệt ảnh, chỉ cho kéo thả và zoom -->
     <OrbitControls
         enableDamping
         dampingFactor={0.05}
-        maxPolarAngle={Math.PI / 2.1}
-        minDistance={8}
-        maxDistance={40}
+        minPolarAngle={Math.PI / 4}
+        maxPolarAngle={Math.PI / 3}
+        minAzimuthAngle={Math.PI / 4}
+        maxAzimuthAngle={Math.PI / 4}
+        enableRotate={false} 
     />
-</T.PerspectiveCamera>
+</T.OrthographicCamera>
 
-<T.AmbientLight intensity={0.6} />
+<T.AmbientLight intensity={0.7} />
 <T.DirectionalLight 
-    position={[10, 20, 10]} 
+    position={[10, 20, 5]} 
     intensity={1.2} 
     castShadow
     shadow.mapSize={[2048, 2048]}
@@ -69,73 +70,63 @@
     shadow.camera.bottom={-10}
 />
 
-<!-- Center Grass Area -->
-<T.Mesh position={[0, -0.4, 0]} receiveShadow>
-    <T.BoxGeometry args={[boardSize * spacing - spacing, 0.4, boardSize * spacing - spacing]} />
-    <T.MeshStandardMaterial color="#81c784" />
+<!-- Nền đúc nguyên khối của bàn cờ (Trắng xám) -->
+<T.Mesh position={[0, -0.2, 0]} castShadow receiveShadow>
+    <T.BoxGeometry args={[boardSize * spacing, 0.4, boardSize * spacing]} />
+    <T.MeshStandardMaterial color="#dcdde1" roughness={0.8} />
 </T.Mesh>
 
-<!-- Draw all cells as raised platforms (Kenney style) -->
+<!-- Sân cỏ ở giữa -->
+<T.Mesh position={[0, 0.01, 0]} receiveShadow>
+    <T.PlaneGeometry args={[(boardSize - 2) * spacing, (boardSize - 2) * spacing]} rotation={[-Math.PI / 2, 0, 0]} />
+    <T.MeshStandardMaterial color="#aed581" roughness={1} />
+</T.Mesh>
+
+<!-- Vẽ các ô đất (Cells) phẳng trên mặt bàn -->
 {#each cells as cell, i}
     {@const coord = getCellCoord(i)}
-    {@const color = getCellColor(cell, ownership[cell.id])}
+    {@const color = getCellColor(cell)}
+    {@const owner = ownership[cell.id]}
     
-    <T.Group position={[coord.x, 0, coord.z]}>
-        <!-- Cell base -->
-        <T.Mesh castShadow receiveShadow>
-            <T.BoxGeometry args={[1.2, 0.5, 1.2]} />
-            <T.MeshStandardMaterial color={color} roughness={0.7} />
+    <T.Group position={[coord.x, 0.015, coord.z]}>
+        <!-- Bề mặt nền ô -->
+        <T.Mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+            <T.PlaneGeometry args={[spacing * 0.95, spacing * 0.95]} />
+            <T.MeshStandardMaterial color={color} roughness={0.5} />
         </T.Mesh>
-        
-        <!-- Cell inner white tile -->
-        {#if cell.type === 'property'}
-            <T.Mesh position={[0, 0.26, 0]} receiveShadow>
-                <T.PlaneGeometry args={[1.0, 1.0]} />
-                <T.MeshStandardMaterial color="#ffffff" roughness={0.3} />
-            </T.Mesh>
+
+        <!-- Nếu có Owner -> Nổi Building 3D lên (Nhà cửa) -->
+        {#if owner}
+            <T.Group position={[0, 0, -spacing * 0.25]}> <!-- Lùi nhà vào góc trong -->
+                <!-- Khối nhà chính -->
+                <T.Mesh position={[0, 0.3, 0]} castShadow receiveShadow>
+                    <T.BoxGeometry args={[0.6, 0.6, 0.6]} />
+                    <T.MeshStandardMaterial color={getOwnerColor(owner)} roughness={0.4} />
+                </T.Mesh>
+                <!-- Mái nhà -->
+                <T.Mesh position={[0, 0.7, 0]} castShadow receiveShadow rotation={[0, Math.PI/4, 0]}>
+                    <T.ConeGeometry args={[0.55, 0.4, 4]} />
+                    <T.MeshStandardMaterial color="#c0392b" roughness={0.3} />
+                </T.Mesh>
+            </T.Group>
         {/if}
 
-        <!-- Threlte HTML Overlay for Text Overlay (Always facing Camera) -->
-        <HTML transform position={[0, 0.35, 0]} sprite scale={0.25} zIndexRange={[100,0]}>
-            <div style="pointer-events: none; text-align: center; color: #2c3e50; text-shadow: 0 1px 2px white; width: 150px; display: flex; flex-direction: column; align-items: center; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">
-                <div style="font-weight: 800; font-size: 1.2rem; background: rgba(255,255,255,0.7); padding: 2px 8px; border-radius: 8px;">{cell.name}</div>
-                {#if cell.price > 0}
-                    <div style="font-weight: 900; font-size: 1.4rem; color: #e74c3c;">${cell.price}</div>
-                {/if}
-            </div>
-        </HTML>
+        <!-- Text thông số (Phẳng trên mặt đất giống game Let's Get Rich) -->
+        <T.Mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, owner ? spacing * 0.2 : 0]}>
+            <HTML transform scale={0.15} pointerEvents="none">
+                <div style="text-align: center; color: #2c3e50; font-family: sans-serif; width: 150px;">
+                    <div style="font-weight: 800; font-size: 2rem;">{cell.name}</div>
+                    {#if cell.price > 0}
+                        <div style="font-weight: 900; font-size: 2.5rem; color: #e74c3c;">${cell.price}</div>
+                    {/if}
+                </div>
+            </HTML>
+        </T.Mesh>
     </T.Group>
 {/each}
 
-<!-- Draw players as 3D tokens -->
-{#each players as player}
-    {@const targetCoord = getCellCoord(player.pos)}
-    {#if !player.bankrupt}
-        <!-- In a real scenario we'd use tweened on position. For simplicity we snap or use spring. -->
-        <T.Group position={[targetCoord.x, 0.5, targetCoord.z]}>
-            <!-- Pawn base -->
-            <T.Mesh position={[(player.id % 3) * 0.3 - 0.3, 0.2, Math.floor(player.id / 3) * 0.3 - 0.15]} castShadow>
-                <T.CylinderGeometry args={[0.2, 0.25, 0.5, 16]} />
-                <T.MeshStandardMaterial color={player.color} roughness={0.2} metalness={0.1} />
-            </T.Mesh>
-            <!-- Pawn head -->
-            <T.Mesh position={[(player.id % 3) * 0.3 - 0.3, 0.55, Math.floor(player.id / 3) * 0.3 - 0.15]} castShadow>
-                <T.SphereGeometry args={[0.2, 16, 16]} />
-                <T.MeshStandardMaterial color={player.color} roughness={0.2} metalness={0.1} />
-
-                <!-- Player Avatar HTML floating specifically above the head -->
-                <HTML transform position={[0, 0.4, 0]} sprite scale={0.4}>
-                    <div style="background: white; border: 3px solid {player.color}; border-radius: 50%; padding: 4px 8px; font-weight: bold; font-size: 1.2rem; color: {player.color}; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
-                        {player.emoji}
-                    </div>
-                </HTML>
-            </T.Mesh>
-        </T.Group>
-    {/if}
-{/each}
-
-<!-- Center Dice visuals (Static placeholders for now, can be bound to physics later) -->
-<T.Group position={[0, 1, 0]}>
+<!-- Xúc xắc ở giữa (Tĩnh) -->
+<T.Group position={[0, 0.4, 0]}>
     <T.Mesh position={[-0.8, 0, 0]} castShadow rotation={[Math.PI/4, Math.PI/4, 0]}>
         <T.BoxGeometry args={[0.8, 0.8, 0.8]} />
         <T.MeshStandardMaterial color="#e74c3c" />
@@ -146,11 +137,34 @@
     </T.Mesh>
 </T.Group>
 
-<!-- Ground plane for contact shadows -->
+<!-- Người chơi -->
+{#each players as player}
+    {@const targetCoord = getCellCoord(player.pos)}
+    {#if !player.bankrupt}
+        <!-- Nâng người chơi lên cao để khỏi kẹt vào bảng -->
+        <T.Group position={[targetCoord.x, 0.1, targetCoord.z]}>
+            <T.Mesh position={[(player.id % 3) * 0.4 - 0.4, 0.2, Math.floor(player.id / 3) * 0.4 - 0.2]} castShadow>
+                <T.CylinderGeometry args={[0.2, 0.25, 0.4, 16]} />
+                <T.MeshStandardMaterial color={player.color} roughness={0.2} metalness={0.1} />
+            </T.Mesh>
+            <T.Mesh position={[(player.id % 3) * 0.4 - 0.4, 0.5, Math.floor(player.id / 3) * 0.4 - 0.2]} castShadow>
+                <T.SphereGeometry args={[0.2, 16, 16]} />
+                <T.MeshStandardMaterial color={player.color} roughness={0.2} metalness={0.1} />
+                <!-- Avatar nổi trên con cờ, xoay về theo Camera -->
+                <HTML transform position={[0, 0.4, 0]} sprite scale={0.2}>
+                    <div style="background: white; border: 4px solid {player.color}; border-radius: 50%; padding: 4px 8px; font-weight: bold; font-size: 2.5rem; color: {player.color}; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+                        {player.emoji}
+                    </div>
+                </HTML>
+            </T.Mesh>
+        </T.Group>
+    {/if}
+{/each}
+
 <ContactShadows 
-    position={[0, -0.45, 0]} 
+    position={[0, -0.4, 0]} 
     opacity={0.8} 
-    scale={30} 
+    scale={40} 
     blur={1.5} 
     far={10} 
 />
