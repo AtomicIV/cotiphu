@@ -1,5 +1,5 @@
 <script>
-    import { onMount, tick } from 'svelte';
+    
     import { fade, scale, fly } from 'svelte/transition';
 
     const cells = [
@@ -76,6 +76,32 @@
         startingMoney: 1500,
         goBonus: 200,
         botBuyChance: 0.8
+    });
+
+    let currentTheme = $state('theme-light');
+    let is3D = $state(false);
+    
+    import { onMount, tick } from 'svelte';
+    
+    onMount(() => {
+        if (typeof localStorage !== 'undefined') {
+            const savedTheme = localStorage.getItem('monopoly-theme');
+            if (savedTheme) {
+                currentTheme = savedTheme;
+            }
+            const saved3D = localStorage.getItem('monopoly-3d');
+            if (saved3D !== null) {
+                is3D = saved3D === 'true';
+            }
+        }
+    });
+
+    $effect(() => {
+        if (typeof document !== 'undefined') {
+            document.body.className = currentTheme + (is3D ? ' is-3d' : '');
+            localStorage.setItem('monopoly-theme', currentTheme);
+            localStorage.setItem('monopoly-3d', is3D);
+        }
     });
 
     function playCellEffect(cellId, type) {
@@ -474,6 +500,28 @@
                         <label>🤖 Bot tỷ lệ mua: {Math.round(config.botBuyChance * 100)}%</label>
                         <input type="range" min="0" max="1" step="0.1" bind:value={config.botBuyChance} class="num-slider" />
                     </div>
+
+                    <div class="setup-group" style="grid-column: 1 / -1; align-items: center; border-top: 1px solid var(--border-soft); padding-top: 15px;">
+                        <label style="margin-bottom: 5px;">🎨 Giao diện (Theme)</label>
+                        <div class="theme-selector">
+                            <label class="theme-btn" class:active={currentTheme === 'theme-light'}>
+                                <input type="radio" bind:group={currentTheme} value="theme-light"> ☀️ Sáng
+                            </label>
+                            <label class="theme-btn" class:active={currentTheme === 'theme-dark'}>
+                                <input type="radio" bind:group={currentTheme} value="theme-dark"> 🌙 Tối
+                            </label>
+                            <label class="theme-btn" class:active={currentTheme === 'theme-neon'}>
+                                <input type="radio" bind:group={currentTheme} value="theme-neon"> ⚡ Neon
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="setup-group" style="grid-column: 1 / -1; align-items: center; border-top: 1px solid var(--border-soft); padding-top: 15px;">
+                        <label style="margin-bottom: 5px;">🕹️ Chế độ 3D</label>
+                        <label class="theme-btn" class:active={is3D}>
+                            <input type="checkbox" bind:checked={is3D}> {is3D ? 'Bật 3D' : 'Tắt 3D'}
+                        </label>
+                    </div>
                 </div>
                 
                 <div class="players-list">
@@ -546,7 +594,7 @@
                     <div class="action-panel">
                         {#if pendingPurchase}
                             <div class="inline-purchase-panel" transition:scale={{duration: 150}}>
-                                <div style="font-weight: bold; margin-bottom: 8px; font-size: 1.1rem; color: #2c3e50;">Mua {pendingPurchase.cell.name}?</div>
+                                <div style="font-weight: bold; margin-bottom: 8px; font-size: 1.1rem; color: var(--text-main);">Mua {pendingPurchase.cell.name}?</div>
                                 <div style="font-size: 0.95rem; margin-bottom: 15px;">Giá: <strong style="color: #27ae60">${pendingPurchase.cell.price}</strong> | Cước: <strong>${pendingPurchase.cell.rent}</strong></div>
                                 <div style="display:flex; justify-content:center; gap: 10px;">
                                     <button class="btn accent" on:click={() => {
@@ -680,8 +728,8 @@
             
         <div class="right-panel">
                 <div class="panel-header" style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; margin-bottom: 10px; gap:8px;">
-                    <div class="sh-title" style="font-weight: bold; color: #2c3e50; font-size: 1.1rem;">Nhật Ký</div>
-                    <div class="speed-control" style="font-size:0.85rem; display:flex; align-items:center; gap:5px; background: #eee; padding: 4px 8px; border-radius: 6px;">
+                    <div class="sh-title" style="font-weight: bold; color: var(--text-main); font-size: 1.1rem;">Nhật Ký</div>
+                    <div class="speed-control" style="font-size:0.85rem; display:flex; align-items:center; gap:5px; background: var(--bg-panel-alt); padding: 4px 8px; border-radius: 6px;">
                         <span style="font-weight:bold; color: #e67e22;">{gameSpeed}x</span>
                         <input type="range" min="0.5" max="20" step="0.5" bind:value={gameSpeed} style="width:50px; cursor:pointer;" title="Tốc độ trận đấu" />
                     </div>
@@ -717,14 +765,94 @@
 </div>
 
 <style>
+
+    :global(body.theme-light) {
+        --bg-window: #e9ecef;
+        --bg-board-ext: #cfe2f3;
+        --bg-board-int: rgba(240, 244, 248, 0.85);
+        --bg-panel: white;
+        --bg-panel-alt: #f8f9fa;
+        --text-main: #2c3e50;
+        --text-muted: #7f8c8d;
+        --border-color: transparent;
+        --border-soft: #e1e8ed;
+        --log-text: #444;
+        --log-bg: white;
+        --log-border: #3498db;
+        --cell-bg: white;
+        --input-border: #ddd;
+        --title-gradient: linear-gradient(135deg, #e74c3c, #f39c12);
+        --p-money-color: var(--p-money-color);
+    }
+    :global(body.theme-dark) {
+        --bg-window: #1a1a2e;
+        --bg-board-ext: #16213e;
+        --bg-board-int: rgba(15, 52, 96, 0.85);
+        --bg-panel: #1e1e2f;
+        --bg-panel-alt: #2a2a40;
+        --text-main: #e0e0e0;
+        --text-muted: #a0a0b0;
+        --border-color: transparent;
+        --border-soft: #303050;
+        --log-text: #ddd;
+        --log-bg: #22223bb3;
+        --log-border: #e94560;
+        --cell-bg: #22223b;
+        --input-border: #444;
+        --title-gradient: linear-gradient(135deg, #e94560, #0f3460);
+        --p-money-color: #2ed573;
+    }
+    :global(body.theme-neon) {
+        --bg-window: #09090b;
+        --bg-board-ext: #12002b;
+        --bg-board-int: rgba(20, 0, 40, 0.85);
+        --bg-panel: #0d0d12;
+        --bg-panel-alt: #16161f;
+        --text-main: #00ffcc;
+        --text-muted: #b300ff;
+        --border-color: transparent;
+        --border-soft: #ff0055;
+        --log-text: #00ffcc;
+        --log-bg: #111;
+        --log-border: #ff0055;
+        --cell-bg: #000;
+        --input-border: #ff0055;
+        --title-gradient: linear-gradient(135deg, #00ffcc, #ff0055);
+        --p-money-color: #00ffcc;
+    }
+
+    .theme-selector {
+        display: flex; gap: 10px; justify-content: center; margin-top: 5px;
+    }
+    .theme-btn {
+        padding: 8px 16px; border-radius: 20px;
+        background: var(--bg-panel-alt); color: var(--text-main);
+        cursor: pointer; border: 2px solid var(--border-soft);
+        font-weight: 600; font-size: 0.9rem; transition: 0.3s;
+    }
+    .theme-btn input { display: none; }
+    .theme-btn.active {
+        border-color: var(--p-money-color);
+        background: rgba(39, 174, 96, 0.1);
+        box-shadow: 0 0 10px rgba(39, 174, 96, 0.2);
+    }
+    :global(body.theme-dark) .theme-btn.active {
+        border-color: #e94560; background: rgba(233,69,96,0.1);
+        box-shadow: 0 0 10px rgba(233,69,96,0.3);
+    }
+    :global(body.theme-neon) .theme-btn.active {
+        border-color: #00ffcc; background: rgba(0,255,204,0.1);
+        box-shadow: 0 0 15px rgba(0,255,204,0.4);
+    }
+
     .game-wrapper {
         width: 100%;
         height: 100%;
         display: flex;
         align-items: center;
         justify-content: center;
-        background: var(--bg-1, #e9ecef);
-        font-family: 'Inter', sans-serif;
+        background: var(--bg-window);
+        font-family: 'Be Vietnam Pro', 'Inter', sans-serif;
         padding: 10px;
         box-sizing: border-box;
     }
@@ -741,7 +869,7 @@
 
     .right-panel {
         width: 340px;
-        background: white;
+        background: var(--bg-panel);
         border-radius: 12px;
         padding: 15px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.08);
@@ -763,18 +891,10 @@
         }
     }
 
-    .monopoly-container {
-        flex: 1;
-        aspect-ratio: 1;
-        background: #cfe2f3;
-        border-radius: 12px;
-        padding: 8px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-        position: relative;
-    }
+    /* Replaced dynamically */
 
     .setup-container {
-        background: white;
+        background: var(--bg-panel);
         aspect-ratio: auto;
         padding: 40px;
         display: flex;
@@ -798,10 +918,10 @@
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         gap: 15px;
-        background: #f8f9fa;
+        background: var(--bg-panel-alt);
         padding: 15px;
         border-radius: 12px;
-        border: 1px solid #e1e8ed;
+        border: 1px solid var(--border-soft);
     }
 
     .setup-group {
@@ -809,7 +929,7 @@
         flex-direction: column;
         align-items: stretch;
         gap: 8px;
-        background: #f8f9fa;
+        background: var(--bg-panel-alt);
         padding: 15px;
         border-radius: 8px;
     }
@@ -821,7 +941,7 @@
 
     .setup-group label {
         font-weight: 600;
-        color: #34495e;
+        color: var(--text-main);
         font-size: 0.95rem;
         text-align: center;
     }
@@ -842,7 +962,7 @@
         display: flex;
         gap: 10px;
         align-items: center;
-        background: #f8f9fa;
+        background: var(--bg-panel-alt);
         padding: 10px;
         border-radius: 8px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
@@ -851,30 +971,43 @@
     .icon-select {
         font-size: 1.3rem;
         padding: 5px;
-        border: 1px solid #ddd;
+        border: 1px solid var(--input-border);
         border-radius: 4px;
-        background: white;
+        background: var(--bg-panel);
     }
     
     .name-input {
         flex: 1;
         padding: 10px;
-        border: 1px solid #ddd;
+        border: 1px solid var(--input-border);
         border-radius: 4px;
         font-size: 1rem;
     }
     
     .type-select {
         padding: 10px;
-        border: 1px solid #ddd;
+        border: 1px solid var(--input-border);
         border-radius: 4px;
-        background: white;
+        background: var(--bg-panel);
     }
     
     .start-btn {
         margin-top: 10px;
         padding: 15px !important;
         font-size: 1.2rem !important;
+    }
+
+    
+    .monopoly-container {
+        flex: 1;
+        aspect-ratio: 1;
+        background: var(--bg-board-ext);
+        border-radius: 12px;
+        padding: 8px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        position: relative;
+        perspective: 1400px;
+        transition: background 0.3s;
     }
 
     .board {
@@ -885,12 +1018,41 @@
         grid-template-rows: repeat(7, 1fr);
         gap: 6px;
         position: relative;
+        transform-style: preserve-3d;
+        transition: transform 0.6s cubic-bezier(0.3, 0, 0.2, 1), box-shadow 0.6s ease;
     }
+
+    :global(body.is-3d) .board {
+        transform: rotateX(45deg) scale(0.9) translateY(-20px);
+        box-shadow: 0 40px 60px rgba(0,0,0,0.4);
+        border-radius: 12px;
+    }
+
+    :global(body.is-3d) .player-token {
+        transform: translate(-50%, -50%) rotateX(-45deg) translateY(-15px);
+        transform-origin: center bottom;
+        box-shadow: 0 15px 10px rgba(0,0,0,0.3);
+    }
+    
+    :global(body.is-3d) .fx-sp {
+        transform: translate(-50%, -50%) rotateX(-45deg);
+    }
+    
+    :global(body.is-3d) .cell-effect-burst {
+        transform: translate(-50%, -50%) rotateX(-45deg);
+    }
+
+    :global(body.is-3d) .dice-scene {
+        transform: rotateX(-45deg) scale(1.2);
+        transform-origin: center bottom;
+        margin-top: -30px;
+    }
+
 
     .board-center {
         grid-column: 2 / 7;
         grid-row: 2 / 7;
-        background: rgba(240, 244, 248, 0.85);
+        background: var(--bg-board-int);
         backdrop-filter: blur(8px);
         border-radius: 12px;
         display: flex;
@@ -904,7 +1066,7 @@
     .logo {
         font-size: 2.5rem;
         font-weight: 800;
-        background: linear-gradient(135deg, #e74c3c, #f39c12);
+        background: var(--title-gradient);
         -webkit-background-clip: text;
         background-clip: text;
         -webkit-text-fill-color: transparent;
@@ -923,7 +1085,7 @@
     }
 
     .player-stat {
-        background: white;
+        background: var(--bg-panel);
         padding: 8px 12px;
         border-radius: 8px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
@@ -957,8 +1119,8 @@
     }
     .player-stat.bankrupt .p-name { text-decoration: line-through; }
 
-    .p-name { font-weight: bold; font-size: 0.95rem; margin-bottom: 4px; color: #2c3e50;}
-    .p-money { font-family: monospace; font-size: 1.1rem; color: #27ae60; font-weight: bold; }
+    .p-name { font-weight: bold; font-size: 0.95rem; margin-bottom: 4px; color: var(--text-main);}
+    .p-money { font-family: monospace; font-size: 1.1rem; color: var(--p-money-color); font-weight: bold; }
 
     .action-panel {
         display: flex;
@@ -1032,7 +1194,7 @@
         position: absolute;
         width: 50px;
         height: 50px;
-        background: #f1f2f6;
+        background: var(--bg-panel);
     }
 
     .dice-face {
@@ -1102,7 +1264,7 @@
     .log-container {
         width: 100%;
         flex: 1;
-        background: #f8f9fa;
+        background: var(--bg-panel-alt);
         border-radius: 8px;
         padding: 12px 14px;
         overflow-y: auto;
@@ -1114,17 +1276,17 @@
     }
 
     .log-entry {
-        background: white;
+        background: var(--bg-panel);
         padding: 8px 12px;
         border-radius: 6px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        border-left: 4px solid #3498db;
-        color: #444;
+        border-left: 4px solid var(--log-border);
+        color: var(--log-text);
         transition: transform 0.2s;
     }
     .log-entry:last-child {
         font-weight: 600;
-        color: #111;
+        color: var(--text-main);
         border-left: 4px solid #f1c40f;
         transform: translateX(4px);
         box-shadow: 0 2px 6px rgba(241, 196, 15, 0.2);
@@ -1132,7 +1294,7 @@
 
     /* Cell styling */
     .cell {
-        background: white;
+        background: var(--bg-panel);
         border-radius: 6px;
         display: flex;
         flex-direction: column;
@@ -1182,7 +1344,7 @@
 
     .c-name {
         font-weight: bold;
-        color: #2c3e50;
+        color: var(--text-main);
         line-height: 1.1;
         margin-bottom: 4px;
     }
@@ -1194,7 +1356,7 @@
     }
 
     .c-desc {
-        color: #7f8c8d;
+        color: var(--text-muted);
         font-size: 0.75rem;
     }
 
@@ -1263,7 +1425,7 @@
     }
 
     .inline-purchase-panel {
-        background: white;
+        background: var(--bg-panel);
         border-radius: 12px;
         padding: 15px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.1);
@@ -1285,7 +1447,7 @@
     }
 
     .modal-content {
-        background: white;
+        background: var(--bg-panel);
         padding: 30px;
         border-radius: 16px;
         width: 90%;
@@ -1296,13 +1458,13 @@
 
     .modal-title {
         font-size: 1.5rem;
-        color: #2c3e50;
+        color: var(--text-main);
         margin: 0 0 16px 0;
     }
 
     .modal-body {
         font-size: 1.1rem;
-        color: #555;
+        color: var(--text-muted);
         margin-bottom: 24px;
         line-height: 1.5;
     }
@@ -1324,7 +1486,7 @@
     }
 
     .btn-cancel {
-        background: #f1f2f6;
+        background: var(--bg-panel);
         color: #57606f;
     }
     .btn-cancel:hover { background: #dfe4ea; }
