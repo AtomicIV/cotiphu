@@ -1,4 +1,6 @@
 <script>
+    import { Canvas } from '@threlte/core';
+    import Scene from './Scene.svelte';
     
     import { fade, scale, fly } from 'svelte/transition';
 
