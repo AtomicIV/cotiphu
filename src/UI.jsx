@@ -400,7 +400,7 @@ function QuizModal({ activeQuiz, submitQuizAnswer, pName }) {
 
    return (
        <div className="ui-overlay quiz-overlay glassmorphism" style={{ zIndex: 100, backgroundColor: 'rgba(0,0,0,0.8)' }}>
-           <div className="quiz-panel glassmorphism" style={{ width: '450px', position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg, #2c3e50, #34495e)', padding: '24px', borderRadius: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', border: '2px solid #f1c40f', animation: 'popIn 0.3s ease-out' }}>
+           <div className="quiz-panel glassmorphism" style={{ width: 'min(450px, 95vw)', maxHeight: '95dvh', overflowY: 'auto', position: 'relative', background: 'linear-gradient(135deg, #2c3e50, #34495e)', padding: 'clamp(14px, 4vw, 24px)', borderRadius: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', border: '2px solid #f1c40f', animation: 'popIn 0.3s ease-out' }}>
                
                {result && (
                    <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: result === 'correct' ? 'rgba(46, 204, 113, 0.9)' : 'rgba(231, 76, 60, 0.9)', zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column', animation: 'popIn 0.2s ease' }}>
@@ -412,12 +412,13 @@ function QuizModal({ activeQuiz, submitQuizAnswer, pName }) {
                )}
 
                <div className="quiz-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                   <h2 style={{ margin: 0, color: '#f1c40f', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>🧠 Giải Toán {activeQuiz.type === 'gojail' ? 'Kháng Cáo' : 'Nhận Thưởng'}!</h2>
+                   <h2 style={{ margin: 0, color: '#f1c40f', textShadow: '0 2px 4px rgba(0,0,0,0.5)', fontSize: 'clamp(0.9rem, 4vw, 1.4rem)' }}>🧠 Giải Toán {activeQuiz.type === 'gojail' ? 'Kháng Cáo' : 'Nhận Thưởng'}!</h2>
                    <div className="quiz-timer" style={{ 
-                       fontSize: '24px', fontWeight: 'bold', 
+                       fontSize: 'clamp(14px, 4vw, 24px)', fontWeight: 'bold', 
                        color: timeLeft <= 5 ? '#e74c3c' : '#2ecc71',
-                       background: 'rgba(0,0,0,0.5)', padding: '6px 14px', borderRadius: '8px',
-                       border: `1px solid ${timeLeft <= 5 ? '#e74c3c' : '#2ecc71'}`
+                       background: 'rgba(0,0,0,0.5)', padding: '4px 10px', borderRadius: '8px',
+                       border: `1px solid ${timeLeft <= 5 ? '#e74c3c' : '#2ecc71'}`,
+                       whiteSpace: 'nowrap', flexShrink: 0
                    }}>
                        ⏱ {timeLeft}s
                    </div>
@@ -428,7 +429,7 @@ function QuizModal({ activeQuiz, submitQuizAnswer, pName }) {
                        Lượt của <b style={{ color: 'white' }}>{pName}</b> <br/>
                        <span style={{ color: '#f1c40f' }}>{subtitle}</span>
                    </div>
-                   <div style={{ fontSize: '3rem', fontWeight: '900', letterSpacing: '2px', color: '#fff', textShadow: '0 4px 10px rgba(0,0,0,0.5)' }}>
+                   <div style={{ fontSize: 'clamp(1.8rem, 8vw, 3rem)', fontWeight: '900', letterSpacing: '2px', color: '#fff', textShadow: '0 4px 10px rgba(0,0,0,0.5)' }}>
                        {questionObj.question}
                    </div>
                </div>
@@ -439,7 +440,7 @@ function QuizModal({ activeQuiz, submitQuizAnswer, pName }) {
                            key={idx} 
                            className="btn btn-buy" 
                            style={{ 
-                               fontSize: '1.8rem', padding: '20px', background: 'linear-gradient(to bottom, #4aa3df, #2980b9)', 
+                               fontSize: 'clamp(1rem, 5vw, 1.8rem)', padding: 'clamp(10px, 3vw, 20px)', background: 'linear-gradient(to bottom, #4aa3df, #2980b9)', 
                                border: 'none', color: 'white', borderRadius: '10px', cursor: 'pointer',
                                boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
                            }}
