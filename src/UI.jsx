@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { PLAYER_NAMES, PLAYER_ICONS } from './constants';
 import { useStore } from './store';
+import { initAudio, setMute, startBGM, getMute, setSfxVolume, setBgmVolume } from './audioEngine';
 
 export default function UI() {
   const state = useStore();
@@ -7,7 +9,8 @@ export default function UI() {
       gameState, players, turn, currentRoll, isMoving, rollDice, tiles,
       pendingPurchase, buyPropertyInteraction, skipPurchase, log, ownership, gameSpeed, toggleSpeed,
       pendingUpgrade, upgradePropertyInteraction, skipUpgrade,
-      activeEventCard, resolveEventCard, jackpotPool
+      activeEventCard, resolveEventCard, jackpotPool,
+      activeQuiz, submitQuizAnswer
   } = state;
 
   const [setupList, setSetupList] = useState([
@@ -16,29 +19,48 @@ export default function UI() {
   ]);
 
   const [setupConfig, setSetupConfig] = useState({
-      startingMoney: 1500,
-      goBonus: 200,
+      startingMoney: 30,
+      goBonus: 5,
       botBuyChance: 0.8,
-      gameSpeed: 1
+      gameSpeed: 1,
+      mathDifficulty: 3,
+      mathTimeout: 15,
+      sfxVolume: 50,
+      bgmVolume: 50
   });
 
-  const updateCfg = (k, v) => setSetupConfig(c => ({...c, [k]: v}));
+  const updateCfg = (k, v) => {
+      setSetupConfig(c => ({...c, [k]: v}));
+      if (k === 'sfxVolume') {
+          setSfxVolume(v / 100);
+      } else if (k === 'bgmVolume') {
+          setBgmVolume(v / 100);
+      }
+  };
 
   // --- PLAYING STATE (UI Toggles) ---
   const [isStatsCollapsed, setIsStatsCollapsed] = useState(false);
   const [isLogsCollapsed, setIsLogsCollapsed] = useState(false);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
+  const toggleSound = () => {
+      const newMuted = !getMute();
+      setMute(newMuted);
+      setSoundEnabled(!newMuted);
+  };
 
   // Click to Roll
   const handleRollClick = () => {
       const currentP = players[turn];
       if (isMoving || state.isRollingDice || pendingPurchase || gameState !== 'playing' || currentP?.type === 'bot' || currentP?.bankrupt || currentP?.inJail) return;
       
-      rollDice(75); // Lực mặc định
+      rollDice(75);
   };
 
-  const SHAPE_NAMES = ['♟️ Con Tốt', '🎩 Mũ Phớt', '🚘 Siêu Xe', '🔺 Kim Tự Tháp', '💍 Chiếc Nhẫn', '⛵ Tàu Thuỷ', '💎 Kim Cương', '🏠 Nhà Nhỏ'];
+  // Bỏ SHAPE_NAMES tĩnh, sử dụng hằng số từ constants.js
 
+  // ===== SETUP SCREEN =====
   if (gameState === 'setup') {
       const addPlayer = () => {
           if (setupList.length < 12) {
@@ -57,39 +79,69 @@ export default function UI() {
       };
 
       return (
-          <div className="ui-overlay setup-overlay glassmorphism" style={{ justifyContent: 'center', alignItems: 'center', pointerEvents: 'auto', background: 'rgba(255,255,255,0.95)' }}>
-              <div style={{ textAlign: 'center', maxWidth: '800px', width: '100%', padding: '20px', display: 'flex', gap: '30px' }}>
+          <div className="ui-overlay setup-overlay glassmorphism">
+              <div className="setup-container">
                   
                   {/* Cột trái: Cấu hình Luật Game */}
-                  <div style={{ flex: 1, backgroundColor: 'rgba(236, 240, 241, 0.8)', padding: '20px', borderRadius: '12px', textAlign: 'left' }}>
-                      <h1 style={{ fontSize: '2.4rem', marginBottom: '10px', background: 'linear-gradient(90deg, #e74c3c, #c0392b)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', textAlign: 'center' }}>Cờ Tỷ Phú 3D</h1>
-                      <h3 style={{ marginBottom: '20px', color: '#34495e', textAlign: 'center' }}>Cấu hình Luật Chơi</h3>
+                  <div className="setup-config">
+                      <h1>Cờ Tỷ Phú 3D</h1>
+                      <h3>Cấu hình Luật Chơi</h3>
                       
-                      <div className="config-item" style={{ marginBottom: '15px' }}>
-                          <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>💰 Số tiền ban đầu (Tỷ)</label>
-                          <input type="number" step="100" value={setupConfig.startingMoney} onChange={e => updateCfg('startingMoney', Number(e.target.value))} style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #bdc3c7' }} />
+                      <div className="config-item">
+                          <label>💰 Số tiền ban đầu (Tỷ)</label>
+                          <input type="number" step="5" value={setupConfig.startingMoney} onChange={e => updateCfg('startingMoney', Number(e.target.value))} />
                       </div>
-                      <div className="config-item" style={{ marginBottom: '15px' }}>
-                          <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>🏁 Tiền thưởng qua xuất phát</label>
-                          <input type="number" step="50" value={setupConfig.goBonus} onChange={e => updateCfg('goBonus', Number(e.target.value))} style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #bdc3c7' }} />
+                      <div className="config-item">
+                          <label>🏁 Thưởng qua vạch Bắt Đầu</label>
+                          <input type="number" step="1" value={setupConfig.goBonus} onChange={e => updateCfg('goBonus', Number(e.target.value))} />
                       </div>
-                      <div className="config-item" style={{ marginBottom: '15px' }}>
-                          <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>🤖 Tỉ lệ Bot mua nhà (0 - 1.0)</label>
-                          <input type="number" step="0.1" min="0" max="1" value={setupConfig.botBuyChance} onChange={e => updateCfg('botBuyChance', Number(e.target.value))} style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #bdc3c7' }} />
+                      <div className="config-item">
+                          <label>🤖 Tỉ lệ Bot mua nhà (0 - 1.0)</label>
+                          <input type="number" step="0.1" min="0" max="1" value={setupConfig.botBuyChance} onChange={e => updateCfg('botBuyChance', Number(e.target.value))} />
                       </div>
-                      <div className="config-item" style={{ marginBottom: '25px' }}>
-                          <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>🚀 Tốc độ Game (1x, 2x, 3x)</label>
-                          <select value={setupConfig.gameSpeed} onChange={e => updateCfg('gameSpeed', Number(e.target.value))} style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #bdc3c7' }}>
+                      <div className="config-item">
+                          <label>🚀 Tốc độ Game (1x - 20x)</label>
+                          <select value={setupConfig.gameSpeed} onChange={e => updateCfg('gameSpeed', Number(e.target.value))}>
                               <option value="1">1x (Thường)</option>
                               <option value="2">2x (Nhanh)</option>
-                              <option value="3">3x (Siêu tốc)</option>
+                              <option value="5">5x (Rất nhanh)</option>
+                              <option value="10">10x (Thần tốc)</option>
+                              <option value="20">20x (Hack speed)</option>
                           </select>
+                      </div>
+                      <div className="config-item">
+                          <label>🧠 Khổ Toàn Tập (Độ khó Toán)</label>
+                          <select value={setupConfig.mathDifficulty} onChange={e => updateCfg('mathDifficulty', Number(e.target.value))}>
+                              <option value="1">Lớp 1 (Cộng trừ &lt; 20)</option>
+                              <option value="2">Lớp 2 (Cộng trừ &lt; 100)</option>
+                              <option value="3">Lớp 3 (Cửu chương)</option>
+                              <option value="4">Lớp 4 (Nhân chia lớn)</option>
+                              <option value="5">Lớp 5 (Biểu thức ngoặc)</option>
+                              <option value="6">Lớp 6 (Phương trình x)</option>
+                          </select>
+                      </div>
+                      <div className="config-item">
+                          <label>⏱ Thời gian giải bài (Giây)</label>
+                          <input type="number" step="1" min="5" max="60" value={setupConfig.mathTimeout} onChange={e => updateCfg('mathTimeout', Number(e.target.value))} />
+                      </div>
+                      <div className="config-item">
+                          <label>🔊 Âm lượng SFX ({setupConfig.sfxVolume}%)</label>
+                          <input type="range" min="0" max="100" value={setupConfig.sfxVolume} onChange={e => updateCfg('sfxVolume', Number(e.target.value))} />
+                      </div>
+                      <div className="config-item" style={{ marginBottom: '20px' }}>
+                          <label>🎵 Âm lượng Nhạc nền ({setupConfig.bgmVolume}%)</label>
+                          <input type="range" min="0" max="100" value={setupConfig.bgmVolume} onChange={e => updateCfg('bgmVolume', Number(e.target.value))} />
                       </div>
 
                       <button 
                           className="btn btn-buy" 
-                          style={{ fontSize: '1.2rem', width: '100%', padding: '15px' }}
-                          onClick={() => state.setupGame(setupList, setupConfig)}
+                          style={{ width: '100%', padding: '12px' }}
+                          onClick={() => {
+                              initAudio();
+                              setMute(!soundEnabled);
+                              startBGM();
+                              state.setupGame(setupList, setupConfig);
+                          }}
                           disabled={setupList.length < 2}
                       >
                           BẮT ĐẦU VÁN CỜ
@@ -97,40 +149,38 @@ export default function UI() {
                   </div>
 
                   {/* Cột phải: Người chơi */}
-                  <div style={{ flex: 1.5 }}>
-                      <h3 style={{ marginBottom: '20px', color: '#7f8c8d', fontSize: '1.5rem' }}>Danh sách Người chơi</h3>
+                  <div className="setup-players">
+                      <h3>Danh sách Người chơi</h3>
                       
-                      <div style={{ maxHeight: '50vh', overflowY: 'auto', marginBottom: '20px', paddingRight: '10px' }}>
+                      <div className="player-list-scroll">
                       {setupList.map((p, i) => (
-                          <div key={i} style={{ display: 'flex', gap: '10px', marginBottom: '15px', alignItems: 'center', background: '#ecf0f1', padding: '10px', borderRadius: '8px' }}>
-                              <span style={{ fontWeight: 'bold' }}>#{i+1}</span>
+                          <div key={i} className="player-row">
+                              <span>#{i+1}</span>
                               <input 
                                   value={p.name} 
                                   onChange={e => updatePlayer(i, 'name', e.target.value)}
                                   placeholder="Tên" 
-                                  style={{ padding: '8px', flex: 1, borderRadius: '5px', border: '1px solid #bdc3c7' }} 
                               />
                               <select 
                                   value={p.type} 
                                   onChange={e => updatePlayer(i, 'type', e.target.value)} 
-                                  style={{ padding: '8px', borderRadius: '5px', border: '1px solid #bdc3c7' }}
                               >
                                   <option value="human">👤 Người</option>
-                                  <option value="bot">🤖 Máy tự chơi</option>
+                                  <option value="bot">🤖 Máy</option>
                               </select>
                               <select 
+                                  className="shape-select"
                                   value={p.shapeId} 
                                   onChange={e => updatePlayer(i, 'shapeId', parseInt(e.target.value))} 
-                                  style={{ padding: '8px', borderRadius: '5px', border: '1px solid #bdc3c7', minWidth: '130px' }}
                               >
-                                  {SHAPE_NAMES.map((name, idx) => <option key={idx} value={idx}>{name}</option>)}
+                                  {PLAYER_NAMES.map((name, idx) => <option key={idx} value={idx}>{PLAYER_ICONS[idx]} {name}</option>)}
                               </select>
-                              <button onClick={() => removePlayer(i)} style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '5px', cursor: 'pointer' }} disabled={setupList.length <= 2}>X</button>
+                              <button className="remove-btn" onClick={() => removePlayer(i)} disabled={setupList.length <= 2}>✕</button>
                           </div>
                       ))}
                   </div>
 
-                      <button className="btn" onClick={addPlayer} disabled={setupList.length >= 12} style={{ background: '#34495e', fontSize: '1.2rem', padding: '10px 20px', width: '100%' }}>
+                      <button className="btn" onClick={addPlayer} disabled={setupList.length >= 12} style={{ background: '#34495e', width: '100%' }}>
                           + Thêm Người Chơi
                       </button>
                   </div>
@@ -139,73 +189,72 @@ export default function UI() {
       );
   }
 
-  // --- PLAYING STATE ---
+  // ===== PLAYING STATE =====
 
   const currentP = players[turn];
   const isBotTurn = currentP?.type === 'bot';
 
   return (
     <div className="ui-overlay">
-      {/* Top Center: Jackpot HUD */}
+      {/* Jackpot HUD */}
       {!isStatsCollapsed && jackpotPool > 0 && (
-          <div style={{ position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)', background: 'linear-gradient(135deg, #f1c40f, #e67e22)', padding: '10px 30px', borderRadius: '30px', boxShadow: '0 5px 15px rgba(241, 196, 15, 0.4)', color: 'white', fontWeight: '900', fontSize: '1.5rem', border: '3px solid white', zIndex: 10, textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
+          <div className="jackpot-hud">
               🎉 Quỹ Lễ Hội: {jackpotPool} Tỷ
           </div>
       )}
-      {/* Top Left: Logo & Stats (Multiplayer list) */}
-      <div className="stats-container" style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '350px', pointerEvents: 'auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h1 style={{ fontSize: '2.5rem', marginBottom: '10px', fontWeight: 900, color: 'white', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>Monopoly 3D</h1>
-            <div style={{ display: 'flex', gap: '5px' }}>
-                <button className="btn" onClick={() => setIsRulesOpen(true)} style={{ padding: '5px 10px', background: '#8e44ad', fontSize: '1.2rem', minWidth: '40px', border: '1px solid #9b59b6' }} title="Luật chơi">
-                    📖
-                </button>
-                <button className="btn" onClick={() => setIsStatsCollapsed(!isStatsCollapsed)} style={{ padding: '5px 10px', background: '#34495e', fontSize: '1.2rem', minWidth: '40px' }} title="Thu gọn/Mở rộng">
-                    {isStatsCollapsed ? '👁️' : '➖'}
-                </button>
-                <button className="btn" onClick={toggleSpeed} style={{ padding: '5px 15px', background: '#34495e', fontSize: '1.2rem' }}>
-                    🚀 {gameSpeed}x
-                </button>
-            </div>
+
+      {/* Top Left: Stats */}
+      <div className="stats-container">
+        <div className="stats-header">
+            <h1>Monopoly 3D</h1>
+                <div className="stats-actions">
+                    <button className="btn btn-sm" onClick={toggleSound} style={{ background: '#e67e22', border: '1px solid #d35400' }} title="Bật/Tắt Âm thanh">
+                        {soundEnabled ? '🔊' : '🔇'}
+                    </button>
+                    <button className="btn btn-sm" onClick={() => setIsRulesOpen(true)} style={{ background: '#8e44ad', border: '1px solid #9b59b6' }} title="Luật chơi">
+                        📖
+                    </button>
+                    <button className="btn btn-sm" onClick={() => setIsStatsCollapsed(!isStatsCollapsed)} style={{ background: '#34495e' }} title="Thu gọn/Mở rộng">
+                        {isStatsCollapsed ? '👁️' : '➖'}
+                    </button>
+                    <button className="btn btn-sm" onClick={toggleSpeed} style={{ background: '#34495e' }}>
+                        🚀{gameSpeed}x
+                    </button>
+                    <button className="btn btn-sm" onClick={() => state.resetToSetup()} style={{ background: '#c0392b' }} title="Chơi lại từ đầu">
+                        🔄
+                    </button>
+                </div>
         </div>
         
         {!isStatsCollapsed && players.map((p, idx) => {
             const isActive = idx === turn;
             return (
-                <div key={p.id} style={{ 
-                    padding: '15px', 
-                    background: isActive ? 'linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,255,255,0.6))' : 'rgba(255,255,255,0.3)', 
-                    borderRadius: '12px',
-                    borderLeft: `8px solid ${p.color}`,
-                    boxShadow: isActive ? '0 4px 15px rgba(0,0,0,0.1)' : 'none',
-                    transform: isActive ? 'scale(1.02)' : 'scale(1)',
-                    transition: 'all 0.3s ease',
-                    opacity: p.bankrupt ? 0.5 : 1
-                }}>
-                    <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span>{p.icon} {p.name} {p.bankrupt && '(PHÁ SẢN)'}</span>
-                        {isActive && <span style={{ fontSize: '0.8rem', background: '#3498db', color: 'white', padding: '2px 8px', borderRadius: '10px' }}>Đang đi...</span>}
+                <div key={p.id} className={`player-card ${isActive ? 'active' : ''} ${p.bankrupt ? 'bankrupt' : ''}`}
+                     style={{ borderLeft: `6px solid ${p.color}` }}>
+                    <h3>
+                        <span>{p.icon} {p.name} {p.bankrupt && '💀'}</span>
+                        {isActive && <span className="player-badge">Đang đi...</span>}
                     </h3>
                     <div className="money-display" style={{ color: p.money < 0 ? '#e74c3c' : '#27ae60' }}>
-                        {p.money} Tỷ {p.inJail && <span style={{ color: '#c0392b', fontSize: '1rem' }}>(Đang ở tù)</span>}
+                        {p.money} Tỷ {p.inJail && <span className="jail-badge">(Đang ở tù)</span>}
                     </div>
                 </div>
             )
         })}
       </div>
 
-      {/* Right Side: Event Log */}
-      <div className="log-box glassmorphism" style={{ pointerEvents: 'auto', padding: isLogsCollapsed ? '10px 20px' : '20px' }}>
-        <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isLogsCollapsed ? 0 : '15px', borderBottom: isLogsCollapsed ? 'none' : '2px solid rgba(0,0,0,0.1)', paddingBottom: isLogsCollapsed ? 0 : '5px' }}>
-            <span>Nhật ký Board</span>
-            <button onClick={() => setIsLogsCollapsed(!isLogsCollapsed)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', padding: '0 5px' }} title="Thu gọn/Mở rộng">
+      {/* Right: Event Log */}
+      <div className={`log-box glassmorphism ${isLogsCollapsed ? 'collapsed' : ''}`}>
+        <h3>
+            <span>Nhật ký</span>
+            <button className="log-toggle-btn" onClick={() => setIsLogsCollapsed(!isLogsCollapsed)} title="Thu gọn/Mở rộng">
                 {isLogsCollapsed ? '🔽' : '🔼'}
             </button>
         </h3>
         {!isLogsCollapsed && (
             <div className="logs">
                 {log.map((item, index) => (
-                    <div key={index} className="log-item" style={{opacity: 1 - index * 0.1, fontSize: '1.1rem'}}>
+                    <div key={index} className="log-item">
                         {item}
                     </div>
                 ))}
@@ -213,112 +262,86 @@ export default function UI() {
         )}
       </div>
 
-      {/* Bottom Center: Actions */}
-      <div className="action-box" style={{ pointerEvents: 'auto' }}>
+      {/* Bottom: Actions */}
+      <div className="action-box">
         
         {pendingPurchase ? (
-             <div className="glassmorphism" style={{ padding: '30px', textAlign: 'center', minWidth: '400px' }}>
-              <h2 style={{ marginBottom: '15px', color: '#2c3e50', fontSize: '2rem' }}>Mua {pendingPurchase.cell.name}?</h2>
-              <div style={{ fontSize: '3rem', margin: '20px 0', color: '#27ae60', fontWeight: '900' }}>{pendingPurchase.cell.basePrice} Tỷ</div>
-              <div style={{ fontSize: '1.2rem', color: '#7f8c8d', marginBottom: '30px' }}>Tiền thuê sau này: {pendingPurchase.cell.rent} Tỷ</div>
+             <div className="glassmorphism action-panel">
+              <h2>Mua {pendingPurchase.cell.name}?</h2>
+              <div className="price-big" style={{ color: '#27ae60' }}>{pendingPurchase.cell.basePrice} Tỷ</div>
+              <div className="price-sub">Tiền thuê: {pendingPurchase.cell.rent} Tỷ</div>
               
               <div className="button-group" style={{ justifyContent: 'center' }}>
                   <button className="btn btn-buy" onClick={buyPropertyInteraction} disabled={players[pendingPurchase.pIndex].money < pendingPurchase.cell.basePrice}>
                        Mua Đất
                   </button>
-                  <button className="btn" onClick={skipPurchase} style={{ background: '#95a5a6' }}>
+                  <button className="btn btn-skip" onClick={skipPurchase}>
                        Bỏ qua
                   </button>
               </div>
           </div>
         ) : pendingUpgrade ? (
-             <div className="glassmorphism" style={{ padding: '30px', textAlign: 'center', minWidth: '400px', border: '2px solid #3498db' }}>
-                <h2 style={{ marginBottom: '15px', color: '#2c3e50', fontSize: '2rem' }}>Nâng cấp {pendingUpgrade.cell.name}?</h2>
-                <div style={{ fontSize: '1.2rem', color: '#7f8c8d' }}>Đang ở: Cấp {pendingUpgrade.currentLevel}</div>
-                <div style={{ fontSize: '3rem', margin: '15px 0', color: '#e74c3c', fontWeight: '900' }}>{pendingUpgrade.upgradeCost} Tỷ</div>
-                <div style={{ fontSize: '1.2rem', color: '#27ae60', marginBottom: '20px' }}>Tiền thuê sau khi lên Cấp {pendingUpgrade.currentLevel + 1}: {pendingUpgrade.cell.rent * Math.pow(2, pendingUpgrade.currentLevel)} Tỷ</div>
+             <div className="glassmorphism action-panel" style={{ border: '2px solid #3498db' }}>
+                <h2>Nâng cấp {pendingUpgrade.cell.name}?</h2>
+                <div className="price-sub" style={{ marginBottom: '4px' }}>Đang ở: Cấp {pendingUpgrade.currentLevel}</div>
+                <div className="price-big" style={{ color: '#e74c3c' }}>{pendingUpgrade.upgradeCost} Tỷ</div>
+                <div className="price-sub">Thuê sau lên Cấp {pendingUpgrade.currentLevel + 1}: {pendingUpgrade.cell.rent * Math.pow(2, pendingUpgrade.currentLevel)} Tỷ</div>
                 <div className="button-group" style={{ justifyContent: 'center' }}>
                     <button className="btn btn-buy" onClick={upgradePropertyInteraction} disabled={players[pendingUpgrade.pIndex].money < pendingUpgrade.upgradeCost} style={{ background: '#3498db' }}>
                         Nâng Cấp
                     </button>
-                    <button className="btn" onClick={skipUpgrade} style={{ background: '#95a5a6' }}>
+                    <button className="btn btn-skip" onClick={skipUpgrade}>
                         Bỏ qua
                     </button>
                 </div>
             </div>
         ) : activeEventCard ? (
-             <div className="glassmorphism" style={{ padding: '40px', textAlign: 'center', minWidth: '400px', background: 'linear-gradient(135deg, #9b59b6, #8e44ad)', color: 'white', border: '5px solid #f1c40f', transform: 'scale(1.1)' }}>
-                <div style={{ fontSize: '1.5rem', textTransform: 'uppercase', letterSpacing: '2px', color: '#f1c40f', marginBottom: '10px', fontWeight: '900' }}>CƠ HỘI / KHÍ VẬN</div>
-                <h2 style={{ marginBottom: '20px', fontSize: '2.5rem', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>{activeEventCard.title}</h2>
-                <div style={{ fontSize: '1.4rem', margin: '20px 0', lineHeight: '1.5', padding: '0 20px' }}>{activeEventCard.text}</div>
-                <button className="btn" onClick={resolveEventCard} style={{ background: '#f1c40f', color: '#2c3e50', fontSize: '1.5rem', padding: '15px 40px', marginTop: '20px', fontWeight: '900', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>
+             <div className="glassmorphism event-panel">
+                <div className="event-label">CƠ HỘI / KHÍ VẬN</div>
+                <h2>{activeEventCard.title}</h2>
+                <div className="event-text">{activeEventCard.text}</div>
+                <button className="btn btn-event-confirm" onClick={resolveEventCard}>
                     XÁC NHẬN
                 </button>
             </div>
         ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', position: 'absolute', bottom: '30px', right: '40px' }}>
-                <div className="turn-indicator glassmorphism" style={{ padding: '10px 20px', marginBottom: '15px', color: currentP.color, fontWeight: 800, fontSize: '1.2rem', textAlign: 'right' }}>
+            <div className="roll-area">
+                <div className="turn-indicator glassmorphism" style={{ color: currentP.color }}>
                     Tới lượt của {currentP.name}
                 </div>
                 
-                <div style={{ position: 'relative', width: '120px', height: '120px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                    {/* Vòng tròn tĩnh trang trí */}
-                    <svg height="120" width="120" style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', transform: 'rotate(-90deg)', dropShadow: '0 0 10px rgba(0,0,0,0.5)' }}>
-                        <circle
-                            stroke="rgba(0,0,0,0.2)"
-                            fill="transparent"
-                            strokeWidth="8"
-                            r="52"
-                            cx="60"
-                            cy="60"
-                        />
-                        <circle
-                            stroke="#f1c40f"
-                            fill="transparent"
-                            strokeWidth="8"
-                            strokeDasharray={52 * 2 * Math.PI}
-                            style={{ 
-                                strokeDashoffset: 0 
-                            }}
-                            strokeLinecap="round"
-                            r="52"
-                            cx="60"
-                            cy="60"
-                        />
-                    </svg>
-                    
-                    {/* Nút bấm tròn xoe ở giữa */}
-                    <button 
-                        className="btn btn-roll" 
-                        onClick={handleRollClick}
-                        disabled={isMoving || state.isRollingDice || currentP?.type === 'bot'}
-                        style={{ 
-                            width: '90px', 
-                            height: '90px', 
-                            borderRadius: '50%',
-                            padding: 0,
-                            display: 'flex',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            fontSize: '2.5rem',
-                            background: 'linear-gradient(135deg, #f1c40f, #f39c12)',
-                            boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
-                            border: '4px solid white'
-                        }}
-                        title="Tung Xúc Xắc"
-                    >
-                        🎲
-                    </button>
-                </div>
+                <button 
+                    className="btn btn-roll" 
+                    onClick={handleRollClick}
+                    disabled={isMoving || state.isRollingDice || currentP?.type === 'bot' || activeQuiz != null}
+                    style={{ 
+                        width: '80px', 
+                        height: '80px', 
+                        borderRadius: '50%',
+                        padding: 0,
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        fontSize: '3rem',
+                        border: '4px solid white',
+                        alignSelf: 'flex-end',
+                        boxShadow: '0 8px 25px rgba(241, 196, 15, 0.6)'
+                    }}
+                    title="Tung Xúc Xắc"
+                >
+                    🎲
+                </button>
             </div>
         )}
       </div>
+
+      {/* Rules Modal */}
       {isRulesOpen && (
-         <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 100, pointerEvents: 'auto' }}>
-            <div className="glassmorphism" style={{ width: '80%', maxWidth: '800px', maxHeight: '80vh', overflowY: 'auto', padding: '40px', position: 'relative', border: '2px solid #f1c40f' }}>
-                <button onClick={() => setIsRulesOpen(false)} style={{ position: 'absolute', top: '15px', right: '20px', background: 'none', border: 'none', fontSize: '2rem', color: '#e74c3c', cursor: 'pointer' }}>✖</button>
-                <h2 style={{ fontSize: '2.5rem', marginBottom: '20px', textAlign: 'center', color: '#f1c40f', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>📜 LUẬT CHƠI COTIPHU 3D</h2>
-                <div style={{ fontSize: '1.2rem', lineHeight: '1.5', color: '#ecf0f1', display: 'flex', flexDirection: 'column', gap: '15px', textAlign: 'left' }}>
+         <div className="rules-overlay">
+            <div className="glassmorphism rules-modal">
+                <button className="rules-close" onClick={() => setIsRulesOpen(false)}>✖</button>
+                <h2>📜 LUẬT CHƠI CỜ TỶ PHÚ 3D</h2>
+                <div className="rules-content">
                     <p><b>1. Mục tiêu:</b> Mua đất, xây nhà, thu tiền thuê và làm cho tất cả đối thủ khác phá sản.</p>
                     <p><b>2. Đất & Xây nhà:</b> Nếu vào ô đất trống, bạn có thể Lập tức mua nó. Nếu giẫm lại ô đất bạn Đã Sở Hữu, bạn có quyền <b>nâng cấp nó</b> lên tối đa Cấp 3 (biểu tượng ⭐) để nhân đôi hoặc nhân bốn tiền thuê áp lên đối thủ.</p>
                     <p><b>3. Sự kiện (Cơ Hội / Khí Vận):</b> Rút thẻ ngẫu nhiên. Bạn có thể được Thưởng tiền, Bị phạt tiền bảo trì, Di chuyển tức thời hoặc Bị bỏ tù.</p>
@@ -329,6 +352,104 @@ export default function UI() {
             </div>
          </div>
       )}
+
+      {/* Math Quiz Modal */}
+      {activeQuiz && players[activeQuiz.pIndex].type !== 'bot' && (
+          <QuizModal activeQuiz={activeQuiz} submitQuizAnswer={submitQuizAnswer} pName={players[activeQuiz.pIndex].name} />
+      )}
     </div>
   );
+}
+
+function QuizModal({ activeQuiz, submitQuizAnswer, pName }) {
+   const [timeLeft, setTimeLeft] = useState(activeQuiz.timeRemaining);
+   const [result, setResult] = useState(null); // 'correct', 'wrong', 'timeout'
+
+   useEffect(() => {
+       if (result !== null) return;
+       setTimeLeft(activeQuiz.timeRemaining);
+       
+       const tick = setInterval(() => {
+           setTimeLeft(prev => {
+               if (prev <= 1) {
+                   clearInterval(tick);
+                   setResult('timeout');
+                   setTimeout(() => submitQuizAnswer(-1), 1500);
+                   return 0;
+               }
+               return prev - 1;
+           });
+       }, 1000);
+
+       return () => clearInterval(tick);
+   }, [activeQuiz, result, submitQuizAnswer]);
+
+   const { questionObj, card } = activeQuiz;
+
+   const handleAnswer = (idx) => {
+       if (result !== null) return; // Prevent multiple clicks
+       const isCorrect = idx === questionObj.correctIndex;
+       setResult(isCorrect ? 'correct' : 'wrong');
+       setTimeout(() => submitQuizAnswer(idx), 1500);
+   };
+
+   let subtitle = 'Trả lời đúng để thoát Tù!';
+   if (card) {
+       subtitle = `Thẻ Rút: "${card.title}" - ${card.text}`;
+   }
+
+   return (
+       <div className="ui-overlay quiz-overlay glassmorphism" style={{ zIndex: 100, backgroundColor: 'rgba(0,0,0,0.8)' }}>
+           <div className="quiz-panel glassmorphism" style={{ width: '450px', position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg, #2c3e50, #34495e)', padding: '24px', borderRadius: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', border: '2px solid #f1c40f', animation: 'popIn 0.3s ease-out' }}>
+               
+               {result && (
+                   <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: result === 'correct' ? 'rgba(46, 204, 113, 0.9)' : 'rgba(231, 76, 60, 0.9)', zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column', animation: 'popIn 0.2s ease' }}>
+                       <div style={{ fontSize: '5rem' }}>{result === 'correct' ? '✅' : (result === 'timeout' ? '⏰' : '❌')}</div>
+                       <h1 style={{ color: 'white', margin: '10px 0', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
+                           {result === 'correct' ? 'CHÍNH XÁC!' : (result === 'timeout' ? 'HẾT GIỜ!' : 'SAI MẤT RỒI!')}
+                       </h1>
+                   </div>
+               )}
+
+               <div className="quiz-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                   <h2 style={{ margin: 0, color: '#f1c40f', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>🧠 Giải Toán {activeQuiz.type === 'gojail' ? 'Kháng Cáo' : 'Nhận Thưởng'}!</h2>
+                   <div className="quiz-timer" style={{ 
+                       fontSize: '24px', fontWeight: 'bold', 
+                       color: timeLeft <= 5 ? '#e74c3c' : '#2ecc71',
+                       background: 'rgba(0,0,0,0.5)', padding: '6px 14px', borderRadius: '8px',
+                       border: `1px solid ${timeLeft <= 5 ? '#e74c3c' : '#2ecc71'}`
+                   }}>
+                       ⏱ {timeLeft}s
+                   </div>
+               </div>
+
+               <div style={{ padding: '16px', background: 'rgba(0,0,0,0.3)', borderRadius: '12px', margin: '20px 0', textAlign: 'center', border: '1px solid rgba(255,255,255,0.1)' }}>
+                   <div style={{ fontSize: '1rem', marginBottom: '10px', color: '#bdc3c7' }}>
+                       Lượt của <b style={{ color: 'white' }}>{pName}</b> <br/>
+                       <span style={{ color: '#f1c40f' }}>{subtitle}</span>
+                   </div>
+                   <div style={{ fontSize: '3rem', fontWeight: '900', letterSpacing: '2px', color: '#fff', textShadow: '0 4px 10px rgba(0,0,0,0.5)' }}>
+                       {questionObj.question}
+                   </div>
+               </div>
+
+               <div className="quiz-options" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                   {questionObj.answers.map((ans, idx) => (
+                       <button 
+                           key={idx} 
+                           className="btn btn-buy" 
+                           style={{ 
+                               fontSize: '1.8rem', padding: '20px', background: 'linear-gradient(to bottom, #4aa3df, #2980b9)', 
+                               border: 'none', color: 'white', borderRadius: '10px', cursor: 'pointer',
+                               boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+                           }}
+                           onClick={() => handleAnswer(idx)}
+                       >
+                           {ans}
+                       </button>
+                   ))}
+               </div>
+           </div>
+       </div>
+   );
 }
