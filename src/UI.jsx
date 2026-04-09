@@ -8,6 +8,7 @@ export default function UI() {
   const state = useStore();
   const { 
       gameState, players, turn, currentRoll, isMoving, rollDice, tiles,
+      pendingPurchase, buyPropertyInteraction, skipPurchase, log, ownership, gameSpeed, toggleSpeed,
       pendingUpgrade, upgradePropertyInteraction, skipUpgrade,
       jackpotPool, submitDecision, activeDecision, activeMarketEvent, roundCount
   } = state;
