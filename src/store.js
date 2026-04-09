@@ -30,6 +30,8 @@ export const useStore = create((set, get) => ({
   activeQuiz: null, // { type: 'jail'|'chance'|'chest'|'gojail', card?: {...}, targetPos?: number, questionObj, timeRemaining, pIndex }
   jackpotPool: 0,
   effects: [],
+  roundCount: 0,
+  activeMarketEvent: null, // { type: 'boom'|'crisis'|'discount', color?: string, duration: number }
 
   spawnEffect: (pos, text, color, type) => set((state) => {
       const existingAtPos = state.effects.filter(e => e.pos === pos).length;
@@ -182,18 +184,20 @@ export const useStore = create((set, get) => ({
 
         // TRÌ HOÃN THÊM VÀI TRĂM MS ĐỂ ĐỌC SỐ XÚC XẮC TRƯỚC KHI ĐI!
         setTimeout(() => {
+            let escapeJail = false;
             if (p.inJail) {
-             if (roll === 1 || roll === 6) {
-                  get().addLog(`🔓 ${p.name} tung được ${roll}, PHÁT TÙ THÀNH CÔNG!`);
-                  const np = [...get().players];
-                  np[pIndex] = { ...np[pIndex], inJail: false };
-                  set({ players: np });
-             } else {
-                  get().addLog(`🔒 ${p.name} tung được ${roll}, tiếp tục mọt gông trong tù.`);
-                  get().endTurn();
-                  return;
-             }
-        }
+                 if (roll === 1 || roll === 6 || p.shapeId === 1 /* Superman bay lượn */) {
+                      escapeJail = true;
+                      get().addLog(`🔓 ${p.name} ${p.shapeId === 1 ? '(Sức Mạnh Bay Lượn) ' : 'tung xúc xắc ' }PHÁT TÙ THÀNH CÔNG!`);
+                      const np = [...get().players];
+                      np[pIndex] = { ...np[pIndex], inJail: false };
+                      set({ players: np });
+                 } else {
+                      get().addLog(`🔒 ${p.name} tung được ${roll}, tiếp tục mọt gông trong tù.`);
+                      get().endTurn();
+                      return;
+                 }
+            }
 
         set({ isMoving: true });
 
@@ -203,7 +207,9 @@ export const useStore = create((set, get) => ({
         
         // Check passing GO
         if (currentPos + roll >= get().tiles.length) {
-            get().adjustMoney(pIndex, get().gameConfig.goBonus, 'Đi qua Bắt Đầu');
+            let bonus = get().gameConfig.goBonus;
+            if (p.shapeId === 6) bonus *= 2; // Pikachu tốc độ
+            get().adjustMoney(pIndex, bonus, 'Đi qua Bắt Đầu');
         }
 
         const updatedPlayers = [...get().players];
@@ -231,7 +237,8 @@ export const useStore = create((set, get) => ({
     if (tile.type === 'start') {
         get().endTurn();
     } else if (tile.type === 'tax') {
-        const taxAmount = tile.basePrice; 
+        let taxAmount = tile.basePrice; 
+        if (p.shapeId === 0) taxAmount = Math.floor(taxAmount * 0.7); // Spider-Man giảm thuế
         set(s => ({ jackpotPool: s.jackpotPool + taxAmount }));
         adjustMoney(pIndex, -taxAmount, 'Đóng thuế');
         addLog(`💰 Quỹ Lễ Hội được cộng thêm ${taxAmount} Tỷ từ tiền thuế!`);
@@ -260,8 +267,9 @@ export const useStore = create((set, get) => ({
         addLog(`📍 ${p.name} vào thăm rạp giam.`);
         get().endTurn();
     } else if (tile.type === 'parking') {
-        const reward = get().jackpotPool;
+        let reward = get().jackpotPool;
         if (reward > 0) {
+             if (p.shapeId === 4) reward = Math.floor(reward * 1.5); // Batman Quỹ Đen
              addLog(`🎉 ${p.name} tới Lễ Hội! HỐT TRỌN GIẢI JACKPOT ${reward} TỔNG!`);
              playJackpot();
              adjustMoney(pIndex, reward, 'Jackpot Lễ Hội');
@@ -277,10 +285,37 @@ export const useStore = create((set, get) => ({
             // Trả tiền cước
             const owner = players.find(x => x.id === ownerData.pIndex);
             const level = ownerData.level;
-            const rentCost = tile.rent * Math.pow(2, level - 1); // Lv1=x1, Lv2=x2, Lv3=x4
-            addLog(`💸 ${p.name} trả ${rentCost} Tỷ thuê nhà Cấp ${level} cho ${owner.name}.`);
+            
+            // Xử lý cơ bản & Sự kiện thị trường 
+            let rentCost = tile.rent * Math.pow(2, level - 1); // Lv1=x1, Lv2=x2, Lv3=x4
+            if (state.activeMarketEvent?.type === 'crisis') rentCost = Math.floor(rentCost / 2);
+            if (state.activeMarketEvent?.type === 'boom' && state.activeMarketEvent.color === tile.color) rentCost *= 3;
+            
+            // ĐỘC QUYỀN VÙNG MIỀN (Monopoly Synergy)
+            const sameColorTiles = state.tiles.filter(t => t.type === 'property' && t.color === tile.color);
+            const isMonopoly = sameColorTiles.length > 0 && sameColorTiles.every(t => state.ownership[t.id]?.pIndex === owner.id);
+            if (isMonopoly) {
+                 rentCost *= 2; 
+                 get().spawnEffect(tile.id, 'ĐỘC QUYỀN x2!', '#9b59b6', 'synergy');
+            }
+            
+            // Passives
+            if (owner.shapeId === 2) rentCost = Math.floor(rentCost * 1.25); // Huggy Wuggy hút máu
+            if (p.shapeId === 0) rentCost = Math.floor(rentCost * 0.7); // Spider-Man giảm nộp
+            
+            rentCost = Math.max(1, rentCost); // Tối thiểu 1 Tỷ
+
+            addLog(`💸 ${p.name} trả ${rentCost} Tỷ thuê nhà Cấp ${level} cho ${owner.name}. ${isMonopoly ? '(Bị Độc Quyền)' : ''}`);
             adjustMoney(pIndex, -rentCost, 'Tiền thuê');
             adjustMoney(owner.id, rentCost, 'Thu tiền thuê');
+            
+            // Creeper nổ phá nhà
+            if (p.shapeId === 5 && level > 1 && Math.random() < 0.2) {
+                setTimeout(() => {
+                     set(s => ({ ownership: { ...s.ownership, [tile.id]: { pIndex: owner.id, level: level - 1 } } }));
+                     addLog(`💥 ${p.name} (Bùng Nổ) làm nổ tung nhà ${owner.name} xuống cấp ${level - 1}!`);
+                }, 1000);
+            }
             
             if (!checkBankruptcy(pIndex)) {
                 get().endTurn();
@@ -289,14 +324,21 @@ export const useStore = create((set, get) => ({
             }
         } else if (ownerData === undefined) {
             // Đất trống -> Mua mới
+            let buyPrice = tile.basePrice;
+            if (p.shapeId === 3) buyPrice = Math.floor(buyPrice * 0.75); // Iron Man giảm giá
+            if (state.activeMarketEvent?.type === 'discount') buyPrice = Math.floor(buyPrice / 2);
+            buyPrice = Math.max(1, buyPrice); // Tối thiểu 1 tỷ
+            
+            const effectiveTile = { ...tile, basePrice: buyPrice };
+
             if (p.type === 'bot') {
                 const botDiff = BOT_DIFFICULTIES[get().gameConfig.botDifficulty] || BOT_DIFFICULTIES.medium;
-                const shouldBuy = decideBuy(tile, p, state.ownership, state.players, p.personality, botDiff);
+                const shouldBuy = decideBuy(effectiveTile, p, state.ownership, state.players, p.personality, botDiff);
                 if (shouldBuy) {
                     const thinkDelay = getBotThinkDelay(botDiff, get().gameSpeed);
                     setTimeout(() => {
                         addLog(`🤖 ${p.name} phân tích và quyết định MUA ${tile.name}!`);
-                        get().buyPropertyDirect(pIndex, tile);
+                        get().buyPropertyDirect(pIndex, effectiveTile);
                         get().endTurn();
                     }, thinkDelay);
                 } else {
@@ -304,15 +346,20 @@ export const useStore = create((set, get) => ({
                     get().endTurn();
                 }
             } else {
-                set({ pendingPurchase: { pIndex, cell: tile } });
+                set({ pendingPurchase: { pIndex, cell: effectiveTile } });
             }
         } else {
             // Đất của mình -> Có thể Nâng cấp (tối đa cấp 3)
             if (ownerData.level < 3) {
-                const upgradeCost = Math.floor(tile.basePrice * 1.5);
+                let upgradeCost = Math.floor(tile.basePrice * 1.5);
+                if (p.shapeId === 3) upgradeCost = Math.floor(upgradeCost * 0.75); // Iron Man
+                if (state.activeMarketEvent?.type === 'discount') upgradeCost = Math.floor(upgradeCost / 2);
+                upgradeCost = Math.max(1, upgradeCost);
+
                 if (p.type === 'bot') {
                     const botDiff = BOT_DIFFICULTIES[get().gameConfig.botDifficulty] || BOT_DIFFICULTIES.medium;
-                    const shouldUpgrade = decideUpgrade(tile, ownerData.level, p, p.personality, botDiff);
+                    const mockedTile = { ...tile, basePrice: upgradeCost }; // for decideUpgrade computation
+                    const shouldUpgrade = decideUpgrade(mockedTile, ownerData.level, p, p.personality, botDiff);
                     if (shouldUpgrade) {
                         const thinkDelay = getBotThinkDelay(botDiff, get().gameSpeed);
                         setTimeout(() => {
@@ -460,7 +507,7 @@ export const useStore = create((set, get) => ({
       if (!state.activeQuiz) return;
       
       const { type, card, questionObj, pIndex } = state.activeQuiz;
-      const isCorrect = selectedIndex === questionObj.correctIndex;
+      let isCorrect = selectedIndex === questionObj.correctIndex;
       const p = state.players[pIndex];
       
       set({ activeQuiz: null });
@@ -484,6 +531,8 @@ export const useStore = create((set, get) => ({
           // Good cards vs Bad cards
           const isBadCard = ['tax', 'jail'].includes(card.type);
           if (isBadCard) {
+              if (p.shapeId === 7) isCorrect = true; // Minion may mắn (miễn phạt)
+              
               if (isCorrect) {
                   get().addLog(`🎓 ${p.name} giải toán đúng thẻ Xấu! KHÁNG CÁO THÀNH CÔNG, KHÔNG BỊ PHẠT!`);
                   get().endTurn();
@@ -494,7 +543,7 @@ export const useStore = create((set, get) => ({
               }
           } else {
               // Good card
-              if (isCorrect) {
+              if (isCorrect || p.shapeId === 7 /* Minion auto win good */) {
                   get().addLog(`🎓 ${p.name} XUẤT SẮC! Thẻ Thưởng nhân đôi giá trị!`);
                   if (card.amount) card.amount *= 2;
                   set({ activeEventCard: card });
@@ -513,12 +562,48 @@ export const useStore = create((set, get) => ({
         while (state.players[nextTurn].bankrupt && nextTurn !== state.turn) {
             nextTurn = (nextTurn + 1) % state.players.length;
         }
+        
+        let newRoundCount = state.roundCount;
+        let newMarketEvent = state.activeMarketEvent;
+        const newLog = [...state.log];
 
-        return { turn: nextTurn };
+        if (nextTurn === 0) {
+            newRoundCount++;
+            
+            // Xử lý giảm duration event
+            if (newMarketEvent) {
+                newMarketEvent.duration--;
+                if (newMarketEvent.duration <= 0) {
+                    newLog.unshift(`🌤️ Sự kiện thị trường đã kết thúc, giá cả bình ổn trở lại.`);
+                    newMarketEvent = null;
+                }
+            }
+            
+            // Mỗi 4 vòng (round), trigger Market Event
+            if (newRoundCount % 4 === 0 && !newMarketEvent) {
+                const events = [
+                    { type: 'boom', name: 'Bùng Nổ Du Lịch', desc: 'Nhóm Tỉnh Thành Du Lịch được nhân 3 Tiền Thuê', color: '#e91e63' }, // Hồng / Du lịch
+                    { type: 'crisis', name: 'Khủng Hoảng Mùa Đông', desc: 'Tất cả tiền thuê nhà trên bản đồ giảm 50%', duration: 1 },
+                    { type: 'discount', name: 'Trợ Giá Kiến Thiết', desc: 'Mua đất và Nâng cấp hôm nay chỉ còn nửa giá!', duration: 1 },
+                    { type: 'jackpot_fill', name: 'Xổ Số Quốc Gia', desc: 'Chính phủ bơm 20 Tỷ vào Quỹ Lễ Hội!', amount: 20 }
+                ];
+                const evt = events[Math.floor(Math.random() * events.length)];
+                newLog.unshift(`🚨 SỰ KIỆN THỊ TRƯỜNG: ${evt.name}! ${evt.desc}`);
+                
+                if (evt.type === 'jackpot_fill') {
+                     setTimeout(() => get().spawnEffect(12, "+20 TỶ JACKPOT", "#f1c40f", "jackpot"), 500);
+                     set(s => ({ jackpotPool: s.jackpotPool + evt.amount }));
+                } else {
+                     newMarketEvent = { type: evt.type, color: evt.color, duration: evt.duration || 1 };
+                }
+            }
+        }
+
+        return { turn: nextTurn, roundCount: newRoundCount, activeMarketEvent: newMarketEvent, log: newLog.slice(0, 20) };
     });
 
     const nextP = get().players[get().turn];
-    if (nextP.type === 'bot') {
+    if (nextP && nextP.type === 'bot' && !nextP.bankrupt) {
         setTimeout(() => {
             get().rollDice();
         }, 1500 / get().gameSpeed);

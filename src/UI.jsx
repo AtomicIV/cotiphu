@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { PLAYER_NAMES, PLAYER_ICONS } from './constants';
+import { PLAYER_NAMES, PLAYER_ICONS, PLAYER_PASSIVES } from './constants';
 import { useStore } from './store';
 import { initAudio, setMute, startBGM, getMute, setSfxVolume, setBgmVolume } from './audioEngine';
 import { BOT_PERSONALITIES, BOT_DIFFICULTIES } from './botAI';
@@ -11,7 +11,7 @@ export default function UI() {
       pendingPurchase, buyPropertyInteraction, skipPurchase, log, ownership, gameSpeed, toggleSpeed,
       pendingUpgrade, upgradePropertyInteraction, skipUpgrade,
       activeEventCard, resolveEventCard, jackpotPool,
-      activeQuiz, submitQuizAnswer
+      activeQuiz, submitQuizAnswer, activeMarketEvent, roundCount
   } = state;
 
   const [setupList, setSetupList] = useState([
@@ -194,9 +194,10 @@ export default function UI() {
                               <select 
                                   className="shape-select"
                                   value={p.shapeId} 
-                                  onChange={e => updatePlayer(i, 'shapeId', parseInt(e.target.value))} 
+                                  onChange={e => updatePlayer(i, 'shapeId', parseInt(e.target.value))}
+                                  title={PLAYER_PASSIVES[p.shapeId]?.desc}
                               >
-                                  {PLAYER_NAMES.map((name, idx) => <option key={idx} value={idx}>{PLAYER_ICONS[idx]} {name}</option>)}
+                                  {PLAYER_NAMES.map((name, idx) => <option key={idx} value={idx}>{PLAYER_ICONS[idx]} {name} - {PLAYER_PASSIVES[idx]?.name}</option>)}
                               </select>
                               <button className="remove-btn" onClick={() => removePlayer(i)} disabled={setupList.length <= 2}>✕</button>
                           </div>
@@ -257,6 +258,12 @@ export default function UI() {
                     <h3>
                         <span>{p.icon} {p.name} {p.bankrupt && '💀'}</span>
                         <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                            <span 
+                                title={PLAYER_PASSIVES[p.shapeId]?.desc}
+                                style={{ fontSize: '0.65rem', background: 'rgba(52,152,219,0.3)', border: '1px solid rgba(41,128,185,0.8)', borderRadius: '4px', padding: '1px 4px', color: '#85c1e9', fontWeight: 600, cursor: 'help' }}
+                            >
+                                ✨ {PLAYER_PASSIVES[p.shapeId]?.name}
+                            </span>
                             {p.type === 'bot' && p.personality && (
                                 <span style={{ fontSize: '0.65rem', background: 'rgba(155,89,182,0.35)', border: '1px solid rgba(155,89,182,0.6)', borderRadius: '8px', padding: '1px 6px', color: '#c39bd3', fontWeight: 600 }}>
                                     {p.personality.name}
@@ -271,6 +278,16 @@ export default function UI() {
                 </div>
             )
         })}
+        {activeMarketEvent && (
+            <div className="glassmorphism" style={{ marginTop: '10px', padding: '8px', borderLeft: `4px solid ${activeMarketEvent.color || '#e74c3c'}`, background: 'rgba(0,0,0,0.6)'}}>
+                 <div style={{ fontSize: '0.75rem', color: '#bdc3c7' }}>🚨 Sự kiện Thị Trường (còn {activeMarketEvent.duration} vòng)</div>
+                 <div style={{ fontWeight: 'bold', color: activeMarketEvent.color || '#e74c3c' }}>{
+                     activeMarketEvent.type === 'boom' ? 'BÙNG NỔ DU LỊCH!' : 
+                     activeMarketEvent.type === 'crisis' ? 'KHỦNG HOẢNG KINH TẾ!' :
+                     activeMarketEvent.type === 'discount' ? 'TRỢ GIÁ KIẾN THIẾT!' : 'SỰ KIỆN LẠ!'
+                 }</div>
+            </div>
+        )}
       </div>
 
       {/* Right: Event Log */}

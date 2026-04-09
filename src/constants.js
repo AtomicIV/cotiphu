@@ -37,6 +37,16 @@ export const GAME_CONFIG = {
 export const PLAYER_COLORS = ['#e74c3c', '#2980b9', '#1a52c3', '#c0392b', '#2d3436', '#2ecc71', '#f1c40f', '#f39c12'];
 export const PLAYER_ICONS = ['🕷️', '🦸', '👹', '🤖', '🦇', '🟩', '⚡', '🥽'];
 export const PLAYER_NAMES = ['Spider-Man', 'Superman', 'Huggy Wuggy', 'Iron Man', 'Batman', 'Creeper', 'Pikachu', 'Minion'];
+export const PLAYER_PASSIVES = [
+    { id: 'spider', name: 'Nhện Né Tránh', desc: 'Giảm 30% tiền trả Thuê nhà và Nộp phạt.' },
+    { id: 'superman', name: 'Bay Lượn', desc: 'Sức mạnh vượt rào: Mặc định luôn phá Tù thành công.' },
+    { id: 'huggy', name: 'Hút Máu', desc: 'Tiền thu Thuê Nhà của bản thân được cộng thêm 25%.' },
+    { id: 'ironman', name: 'Tỷ Phú', desc: 'Giảm 25% giá Mua nhà và Nâng cấp Đất đai.' },
+    { id: 'batman', name: 'Quỹ Đen', desc: 'Mỗi khi tới Bãi đỗ xe luôn vơ vét Quỹ Lễ Hội x1.5 lần tiền.' },
+    { id: 'creeper', name: 'Bùng Nổ', desc: 'Có 20% cơ hội nổ phá sập 1 cấp nhà đối thủ khi đạp trúng.' },
+    { id: 'pikachu', name: 'Tốc Độ', desc: 'Tiền thưởng khi đi qua Bắt Đầu (GO) được nhân đôi (x2).' },
+    { id: 'minion', name: 'May Mắn', desc: 'Vào Cơ hội/Khí vận: Miễn nhiễm thẻ Phạt, Thẻ Thưởng x2.' }
+];
 
 // Helper to get 3D coordinates based on board index (24 tiles around 7x7 grid)
 export function getTileCoordinates(index) {
