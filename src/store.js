@@ -122,7 +122,7 @@ export const useStore = create((set, get) => ({
 
   checkBankruptcy: (pIndex) => {
       const p = get().players[pIndex];
-      if (p.money < 0) {
+      if (p.money <= 0) {
           get().addLog(`💀 ${p.name} đã PHÁ SẢN!`);
           set(state => {
               const newPlayers = [...state.players];
