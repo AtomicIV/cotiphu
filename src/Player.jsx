@@ -168,7 +168,7 @@ function PlayerToken({ player, index, totalPlayers }) {
     if (!meshRef.current) return;
     if (player.bankrupt) {
         meshRef.current.visible = false;
-        if (rippleRef.current) rippleRef.current.visible = false;
+        if (effectsGroupRef.current) effectsGroupRef.current.visible = false;
         return;
     }
     
