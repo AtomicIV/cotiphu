@@ -326,15 +326,6 @@ export default function UI() {
                     </button>
                 </div>
             </div>
-        ) : activeEventCard ? (
-             <div className="glassmorphism event-panel">
-                <div className="event-label">CƠ HỘI / KHÍ VẬN</div>
-                <h2>{activeEventCard.title}</h2>
-                <div className="event-text">{activeEventCard.text}</div>
-                <button className="btn btn-event-confirm" onClick={resolveEventCard}>
-                    XÁC NHẬN
-                </button>
-            </div>
         ) : (
             <div className="roll-area">
                 <div className="turn-indicator glassmorphism" style={{ color: currentP.color }}>
