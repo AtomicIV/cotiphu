@@ -39,7 +39,7 @@ export const PLAYER_ICONS = ['🕷️', '🦸', '👹', '🤖', '🦇', '🟩', 
 export const PLAYER_NAMES = ['Spider-Man', 'Superman', 'Huggy Wuggy', 'Iron Man', 'Batman', 'Creeper', 'Pikachu', 'Minion'];
 export const PLAYER_PASSIVES = [
     { id: 'spider', name: 'Nhện Né Tránh', desc: 'Giảm 30% tiền trả Thuê nhà và Nộp phạt.' },
-    { id: 'superman', name: 'Bay Lượn', desc: 'Sức mạnh vượt rào: Mặc định luôn phá Tù thành công.' },
+    { id: 'superman', name: 'Bay Lượn', desc: 'Công dân Ưu tú: Miễn 100% Thuế nhà nước tại ô Thuế.' },
     { id: 'huggy', name: 'Hút Máu', desc: 'Tiền thu Thuê Nhà của bản thân được cộng thêm 25%.' },
     { id: 'ironman', name: 'Tỷ Phú', desc: 'Giảm 25% giá Mua nhà và Nâng cấp Đất đai.' },
     { id: 'batman', name: 'Quỹ Đen', desc: 'Mỗi khi tới Bãi đỗ xe luôn vơ vét Quỹ Lễ Hội x1.5 lần tiền.' },

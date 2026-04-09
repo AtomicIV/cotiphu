@@ -186,9 +186,9 @@ export const useStore = create((set, get) => ({
         setTimeout(() => {
             let escapeJail = false;
             if (p.inJail) {
-                 if (roll === 1 || roll === 6 || p.shapeId === 1 /* Superman bay lượn */) {
+                 if (roll === 1 || roll === 6) {
                       escapeJail = true;
-                      get().addLog(`🔓 ${p.name} ${p.shapeId === 1 ? '(Sức Mạnh Bay Lượn) ' : 'tung xúc xắc ' }PHÁT TÙ THÀNH CÔNG!`);
+                      get().addLog(`🔓 ${p.name} tung xúc xắc PHÁT TÙ THÀNH CÔNG!`);
                       const np = [...get().players];
                       np[pIndex] = { ...np[pIndex], inJail: false };
                       set({ players: np });
@@ -239,9 +239,15 @@ export const useStore = create((set, get) => ({
     } else if (tile.type === 'tax') {
         let taxAmount = tile.basePrice; 
         if (p.shapeId === 0) taxAmount = Math.floor(taxAmount * 0.7); // Spider-Man giảm thuế
-        set(s => ({ jackpotPool: s.jackpotPool + taxAmount }));
-        adjustMoney(pIndex, -taxAmount, 'Đóng thuế');
-        addLog(`💰 Quỹ Lễ Hội được cộng thêm ${taxAmount} Tỷ từ tiền thuế!`);
+        if (p.shapeId === 1) taxAmount = 0; // Superman miễn thuế hoàn toàn
+        
+        if (taxAmount > 0) {
+             set(s => ({ jackpotPool: s.jackpotPool + taxAmount }));
+             adjustMoney(pIndex, -taxAmount, 'Đóng thuế');
+             addLog(`💰 Quỹ Lễ Hội được cộng thêm ${taxAmount} Tỷ từ tiền thuế!`);
+        } else {
+             addLog(`✨ ${p.name} được miễn thuế 100% nhờ kỹ năng Công Dân Ưu Tú!`);
+        }
         if (!checkBankruptcy(pIndex)) get().endTurn();
     } else if (tile.type === 'chance' || tile.type === 'chest') {
         const EVENTS = [
