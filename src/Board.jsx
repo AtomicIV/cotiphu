@@ -24,7 +24,7 @@ export default function Board() {
       <Dice />
 
       {/* Nền bệ bê tông bên dưới */}
-      <mesh position={[0, -0.1, 0]} receiveShadow castShadow>
+      <mesh position={[0, -0.1, 0]} receiveShadow>
         <boxGeometry args={[BOARD_SIZE * 2.5 + 2.5, 0.2, BOARD_SIZE * 2.5 + 2.5]} />
         <meshStandardMaterial color="#bdc3c7" roughness={0.9} />
       </mesh>
@@ -240,7 +240,7 @@ export default function Board() {
         return (
           <group key={tile.id} position={[x, y + 0.05, z]} rotation={[0, rotY, 0]}>
             {/* Tấm bìa nền cứng bên dưới */}
-            <mesh receiveShadow castShadow position={[0, -0.05, 0]}>
+            <mesh receiveShadow position={[0, -0.05, 0]}>
               <boxGeometry args={[2.3, 0.1, 2.3]} />
               <meshStandardMaterial color="#bdc3c7" roughness={1} />
             </mesh>

@@ -8,7 +8,7 @@ import EffectsManager from './Effects';
 export default function Game() {
   return (
     <div className="canvas-container">
-      <Canvas shadows>
+      <Canvas shadows dpr={[1, 1.5]} performance={{ min: 0.5 }}>
         {/* Isometric Camera setup */}
         <OrthographicCamera
             makeDefault
@@ -24,6 +24,8 @@ export default function Game() {
             minAzimuthAngle={Math.PI / 4}
             maxAzimuthAngle={Math.PI / 4}
             enableRotate={false}
+            enablePan={false}
+            enableZoom={true}
         />
 
         {/* Lighting */}
@@ -32,7 +34,11 @@ export default function Game() {
             castShadow 
             position={[5, 10, 5]} 
             intensity={1.5} 
-            shadow-mapSize={[2048, 2048]} 
+            shadow-mapSize={[1024, 1024]} 
+            shadow-camera-left={-15}
+            shadow-camera-right={15}
+            shadow-camera-top={15}
+            shadow-camera-bottom={-15}
         />
         
         {/* Game Elements */}
