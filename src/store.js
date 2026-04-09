@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { TILES, GAME_CONFIG, PLAYER_COLORS, PLAYER_ICONS } from './constants';
 import { playRoll, playCoin, playNegative, playUpgrade, playJackpot } from './audioEngine';
-import { generateMathQuiz } from './mathLogic';
-import { BOT_PERSONALITIES, BOT_DIFFICULTIES, decideBuy, decideUpgrade, getBotQuizCorrectChance, getBotThinkDelay } from './botAI';
+
+import { BOT_PERSONALITIES, BOT_DIFFICULTIES, decideBuy, decideUpgrade, getBotThinkDelay, decideEvent } from './botAI';
 
 export const useStore = create((set, get) => ({
   gameState: 'setup', // 'setup' | 'playing'
@@ -26,8 +26,8 @@ export const useStore = create((set, get) => ({
   isMoving: false,
   pendingPurchase: null, // { pIndex, cell }
   pendingUpgrade: null,  // { pIndex, cell, currentLevel, upgradeCost }
-  activeEventCard: null, // { title, text, type, amount }
-  activeQuiz: null, // { type: 'jail'|'chance'|'chest'|'gojail', card?: {...}, targetPos?: number, questionObj, timeRemaining, pIndex }
+  activeQuiz: null, // deprecated
+  activeDecision: null, // { title, desc, choices: [], pIndex }
   jackpotPool: 0,
   effects: [],
   roundCount: 0,
@@ -244,25 +244,117 @@ export const useStore = create((set, get) => ({
         addLog(`💰 Quỹ Lễ Hội được cộng thêm ${taxAmount} Tỷ từ tiền thuế!`);
         if (!checkBankruptcy(pIndex)) get().endTurn();
     } else if (tile.type === 'chance' || tile.type === 'chest') {
-        const CHANCE_CARDS = [
-            { title: 'Tốc Hành', text: 'Chuyến bay thẳng đến vạch Xuất Phát. Nhận ngay khoản thưởng!', type: 'go', targetPos: 0 },
-            { title: 'Bị Cải Tạo', text: 'Bị tuần tra gô cổ vào Tù. Thu hồi giấy phép.', type: 'jail', targetPos: 6 },
-            { title: 'Trúng Số', text: 'Trúng vé số độc đắc. Nhận khoản tiền lớn.', type: 'money', amount: 10 },
-            { title: 'Đóng Phạt', text: 'Vi phạm luật. Trừ tiền đút vào Quỹ Lễ Hội.', type: 'tax', amount: 3 },
-            { title: 'Sinh Nhật', text: 'Được chuyển khoản quà sinh nhật bất ngờ.', type: 'money', amount: 5 },
-            { title: 'Bảo Trì', text: 'Cột điện nhà bị hỏng. Đóng phạt ngay lập tức.', type: 'tax', amount: 2 },
-            { title: 'Được Đầu Tư', text: 'Cổ phiếu trên sàn giao dịch phất lên.', type: 'money', amount: 8 },
-            { title: 'Trễ Phà', text: 'Phải đóng phạt phí chờ đợi để di chuyển.', type: 'tax', amount: 1 },
+        const EVENTS = [
+            {
+                title: 'Phi Vụ Chợ Đen',
+                desc: 'Khám phá một kho hàng lậu vô chủ. Có nên tham gia tuồn hàng?',
+                choices: [
+                    { 
+                        text: 'Tham dự (Cơ hội ăn 15 Tỷ, 30% đi Tù)',
+                        style: 'danger',
+                        resolve: (p) => {
+                             if (Math.random() < 0.3) {
+                                 get().addLog(`🚓 ${p.name} tham lam bị tóm cổ vào TÙ!`);
+                                 get().sendToJail(p.id);
+                             } else {
+                                 get().adjustMoney(p.id, 15, 'Trúng mánh Chợ Đen');
+                                 get().endTurn();
+                             }
+                        }
+                    },
+                    {
+                        text: 'Báo Cảnh sát (An toàn, được thưởng 3 Tỷ)',
+                        style: 'safe',
+                        resolve: (p) => {
+                             get().adjustMoney(p.id, 3, 'Tố giác tội phạm');
+                             get().endTurn();
+                        }
+                    }
+                ]
+            },
+            {
+                title: 'Khởi Nghiệp Công Nghệ',
+                desc: 'Một startup bạn bè đang gọi vốn 8 Tỷ.',
+                choices: [
+                    {
+                        text: 'Đầu tư (50% x3 số tiền, 50% mất trắng)',
+                        style: 'danger',
+                        condition: (p) => p.money >= 8,
+                        resolve: (p) => {
+                            get().adjustMoney(p.id, -8, 'Vốn Startup');
+                            if (Math.random() < 0.5) {
+                                setTimeout(() => get().adjustMoney(p.id, 24, 'Thưởng Startup IPO'), 800);
+                                get().addLog(`🚀 Startup của ${p.name} IPO thành công!`);
+                            } else {
+                                setTimeout(() => get().addLog(`💸 Startup phá sản, ${p.name} mất trắng vốn!`), 500);
+                            }
+                            get().endTurn();
+                        }
+                    },
+                    {
+                        text: 'Từ chối đầu tư',
+                        style: 'safe',
+                        resolve: (p) => {
+                            get().addLog(`⏭️ ${p.name} chọn giữ tiền an toàn.`);
+                            get().endTurn();
+                        }
+                    }
+                ]
+            },
+            {
+                title: 'Cơ Hội Làm Tượng Đài',
+                desc: 'Quỹ Lễ hội cần người quyên góp Tạc tượng.',
+                choices: [
+                    {
+                        text: 'Góp 5 Tỷ (Nhận Khí Vận may mắn)',
+                        style: 'buy',
+                        condition: (p) => p.money >= 5,
+                        resolve: (p) => {
+                            get().adjustMoney(p.id, -5, 'Tạc tượng');
+                            set(s => ({ jackpotPool: s.jackpotPool + 5 }));
+                            get().addLog(`✨ Nhờ tạc tượng, ${p.name} nhận được phúc lành!`);
+                            setTimeout(() => get().adjustMoney(p.id, 12, 'Phước lành'), 800);
+                            get().endTurn();
+                        }
+                    },
+                    {
+                        text: 'Bỏ qua đi thẳng',
+                        style: 'safe',
+                        resolve: () => get().endTurn()
+                    }
+                ]
+            }
         ];
-        const card = CHANCE_CARDS[Math.floor(Math.random() * CHANCE_CARDS.length)];
         
-        const qObj = generateMathQuiz(state.gameConfig.mathDifficulty || 3);
-        set({ activeQuiz: { type: tile.type, card, questionObj: qObj, timeRemaining: state.gameConfig.mathTimeout || 15, pIndex: pIndex } });
-        get().checkBotQuiz();
+        const event = EVENTS[Math.floor(Math.random() * EVENTS.length)];
+        set({ activeDecision: { ...event, pIndex } });
+        get().checkBotDecision();
     } else if (tile.type === 'gojail') {
-        const qObj = generateMathQuiz(state.gameConfig.mathDifficulty || 3);
-        set({ activeQuiz: { type: 'gojail', questionObj: qObj, timeRemaining: state.gameConfig.mathTimeout || 15, pIndex: pIndex } });
-        get().checkBotQuiz();
+        set({ activeDecision: {
+            title: 'Cảnh Sát Giao Thông',
+            desc: 'Bạn bị tóm vì vượt đèn đỏ và kẹt xe! Đóng phạt nhanh hay lên đồn?',
+            pIndex,
+            choices: [
+                {
+                    text: 'Nộp phạt 10 Tỷ (Chạy lỗi)',
+                    style: 'buy',
+                    condition: (p) => p.money >= 10,
+                    resolve: (p) => {
+                         get().adjustMoney(p.id, -10, 'Nộp phạt vi phạm');
+                         set(s => ({ jackpotPool: s.jackpotPool + 10 }));
+                         get().endTurn();
+                    }
+                },
+                {
+                    text: 'Lên Đồn (Vào Tù)',
+                    style: 'danger',
+                    resolve: (p) => {
+                         get().sendToJail(p.id);
+                    }
+                }
+            ]
+        }});
+        get().checkBotDecision();
     } else if (tile.type === 'jail') {
         addLog(`📍 ${p.name} vào thăm rạp giam.`);
         get().endTurn();
@@ -441,117 +533,65 @@ export const useStore = create((set, get) => ({
       get().endTurn();
   },
 
-  resolveEventCard: () => {
-      const { activeEventCard, turn, adjustMoney, checkBankruptcy, addLog } = get();
-      if (!activeEventCard) return;
-
-      const pIndex = turn;
-      const p = get().players[pIndex];
-      const card = activeEventCard;
-
-      set({ activeEventCard: null });
-
-      if (card.type === 'money') {
-          adjustMoney(pIndex, card.amount, card.title);
-      } else if (card.type === 'tax') {
-          set(s => ({ jackpotPool: s.jackpotPool + card.amount }));
-          adjustMoney(pIndex, -card.amount, card.title);
-          addLog(`💰 Quỹ Lễ Hội nhận ${card.amount} Tỷ từ ${p.name}!`);
-      } else if (card.type === 'go') {
-          set(s => {
-              const np = [...s.players];
-              np[pIndex].pos = card.targetPos;
-              return { players: np };
-          });
-          adjustMoney(pIndex, get().gameConfig.goBonus, card.title);
-          // Cho player đi luôn không cần roll animation vì bốc bài
-      } else if (card.type === 'jail') {
-          set(s => {
-              const np = [...s.players];
-              np[pIndex].pos = card.targetPos;
-              np[pIndex].inJail = true;
-              return { players: np };
-          });
-          addLog(`🚓 Bốc bài gô cổ! ${p.name} vô thẳng Tù.`);
-      }
-
-      if (!checkBankruptcy(pIndex)) {
-          get().endTurn();
-      }
+  sendToJail: (pId) => {
+      set(s => {
+          const np = [...s.players];
+          const idx = np.findIndex(x => x.id === pId);
+          if (idx !== -1) {
+              np[idx].pos = 6;
+              np[idx].inJail = true;
+          }
+          return { players: np };
+      });
+      get().endTurn();
   },
 
-  checkBotQuiz: () => {
+  checkBotDecision: () => {
       const state = get();
-      if (!state.activeQuiz) return;
-      const p = state.players[state.activeQuiz.pIndex];
+      if (!state.activeDecision) return;
+      
+      const evt = state.activeDecision;
+      const p = state.players[evt.pIndex];
+      
       if (p.type === 'bot') {
           const botDiff = BOT_DIFFICULTIES[state.gameConfig.botDifficulty] || BOT_DIFFICULTIES.medium;
-          const mathDiff = state.gameConfig.mathDifficulty || 3;
-          const chanceCorrect = getBotQuizCorrectChance(mathDiff, botDiff);
           const thinkDelay = getBotThinkDelay(botDiff, state.gameSpeed);
           
           setTimeout(() => {
-              const stillActive = get().activeQuiz;
+              const stillActive = get().activeDecision;
               if (stillActive && stillActive.pIndex === p.id) {
-                  const isCorrect = Math.random() < chanceCorrect;
-                  const emoji = isCorrect ? '🧠' : '😵';
-                  get().addLog(`${emoji} ${p.name} (Bot ${botDiff.name}) đang giải toán...`);
-                  get().submitQuizAnswer(isCorrect ? stillActive.questionObj.correctIndex : -1);
+                  // Lấy choices có thể bấm được
+                  const possibleChoices = stillActive.choices.map((c, i) => ({
+                      ...c,
+                      index: i,
+                      disabled: c.condition && !c.condition(p)
+                  }));
+                  
+                  const cIndex = decideEvent(possibleChoices, p, p.personality, botDiff);
+                  if (cIndex !== -1 && stillActive.choices[cIndex]) {
+                      get().addLog(`🤖 ${p.name} (Bot) đã chọn: "${stillActive.choices[cIndex].text}"`);
+                      get().submitDecision(cIndex);
+                  }
               }
-          }, thinkDelay);
+          }, thinkDelay * 1.5); // Bot suy nghĩ ra quyết định lâu hơn chút
       }
   },
 
-  submitQuizAnswer: (selectedIndex) => {
+  submitDecision: (index) => {
       const state = get();
-      if (!state.activeQuiz) return;
+      if (!state.activeDecision) return;
       
-      const { type, card, questionObj, pIndex } = state.activeQuiz;
-      let isCorrect = selectedIndex === questionObj.correctIndex;
-      const p = state.players[pIndex];
+      const evt = state.activeDecision;
+      const p = state.players[evt.pIndex];
+      const choice = evt.choices[index];
       
-      set({ activeQuiz: null });
-      
-      if (type === 'gojail') {
-          if (isCorrect) {
-              get().addLog(`🎓 ${p.name} TRẢ LỜI ĐÚNG! Trắng án, thoát khởi việc Đi Tù!`);
-              get().endTurn();
-          } else {
-              get().addLog(`🚓 TRẢ LỜI SAI (hoặc Hết giờ)! ${p.name} BỊ BẮT VÀO TÙ!`);
-              playNegative();
-              set(s => {
-                  const np = [...s.players];
-                  np[pIndex].pos = 6;
-                  np[pIndex].inJail = true;
-                  return { players: np };
-              });
-              get().endTurn();
-          }
-      } else if (type === 'chance' || type === 'chest') {
-          // Good cards vs Bad cards
-          const isBadCard = ['tax', 'jail'].includes(card.type);
-          if (isBadCard) {
-              if (p.shapeId === 7) isCorrect = true; // Minion may mắn (miễn phạt)
-              
-              if (isCorrect) {
-                  get().addLog(`🎓 ${p.name} giải toán đúng thẻ Xấu! KHÁNG CÁO THÀNH CÔNG, KHÔNG BỊ PHẠT!`);
-                  get().endTurn();
-              } else {
-                  get().addLog(`❌ Giải toán thất bại thẻ Xấu! Hình phạt nhân đôi!`);
-                  if (card.amount) card.amount *= 2;
-                  set({ activeEventCard: card }); // Pass to confirm screen
-              }
-          } else {
-              // Good card
-              if (isCorrect || p.shapeId === 7 /* Minion auto win good */) {
-                  get().addLog(`🎓 ${p.name} XUẤT SẮC! Thẻ Thưởng nhân đôi giá trị!`);
-                  if (card.amount) card.amount *= 2;
-                  set({ activeEventCard: card });
-              } else {
-                  get().addLog(`❌ Trả lời sai rùi! ${p.name} nhận mức Thưởng gốc.`);
-                  set({ activeEventCard: card });
-              }
-          }
+      // Execute the decision side effect
+      set({ activeDecision: null });
+      if (choice && choice.resolve) {
+          choice.resolve(p);
+      } else {
+          // Fallback
+          get().endTurn();
       }
   },
 

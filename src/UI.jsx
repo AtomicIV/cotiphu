@@ -8,10 +8,8 @@ export default function UI() {
   const state = useStore();
   const { 
       gameState, players, turn, currentRoll, isMoving, rollDice, tiles,
-      pendingPurchase, buyPropertyInteraction, skipPurchase, log, ownership, gameSpeed, toggleSpeed,
       pendingUpgrade, upgradePropertyInteraction, skipUpgrade,
-      activeEventCard, resolveEventCard, jackpotPool,
-      activeQuiz, submitQuizAnswer, activeMarketEvent, roundCount
+      jackpotPool, submitDecision, activeDecision, activeMarketEvent, roundCount
   } = state;
 
   const [setupList, setSetupList] = useState([
@@ -113,21 +111,6 @@ export default function UI() {
                               <option value="10">10x (Thần tốc)</option>
                               <option value="20">20x (Hack speed)</option>
                           </select>
-                      </div>
-                      <div className="config-item">
-                          <label>🧠 Khổ Toàn Tập (Độ khó Toán)</label>
-                          <select value={setupConfig.mathDifficulty} onChange={e => updateCfg('mathDifficulty', Number(e.target.value))}>
-                              <option value="1">Lớp 1 (Cộng trừ &lt; 20)</option>
-                              <option value="2">Lớp 2 (Cộng trừ &lt; 100)</option>
-                              <option value="3">Lớp 3 (Cửu chương)</option>
-                              <option value="4">Lớp 4 (Nhân chia lớn)</option>
-                              <option value="5">Lớp 5 (Biểu thức ngoặc)</option>
-                              <option value="6">Lớp 6 (Phương trình x)</option>
-                          </select>
-                      </div>
-                      <div className="config-item">
-                          <label>⏱ Thời gian giải bài (Giây)</label>
-                          <input type="number" step="1" min="5" max="60" value={setupConfig.mathTimeout} onChange={e => updateCfg('mathTimeout', Number(e.target.value))} />
                       </div>
                       <div className="config-item">
                           <label>🔊 Âm lượng SFX ({setupConfig.sfxVolume}%)</label>
@@ -382,7 +365,7 @@ export default function UI() {
                 <button 
                     className="btn btn-roll" 
                     onClick={handleRollClick}
-                    disabled={isMoving || state.isRollingDice || currentP?.type === 'bot' || activeQuiz != null || currentP?.inJail}
+                    disabled={isMoving || state.isRollingDice || currentP?.type === 'bot' || activeDecision != null || currentP?.inJail}
                     style={{ 
                         width: '80px', 
                         height: '80px', 
@@ -423,104 +406,51 @@ export default function UI() {
          </div>
       )}
 
-      {/* Math Quiz Modal */}
-      {activeQuiz && players[activeQuiz.pIndex].type !== 'bot' && (
-          <QuizModal activeQuiz={activeQuiz} submitQuizAnswer={submitQuizAnswer} pName={players[activeQuiz.pIndex].name} />
+      {/* Decision Modal */}
+      {activeDecision && players[activeDecision.pIndex].type !== 'bot' && (
+          <div className="ui-overlay quiz-overlay glassmorphism" style={{ zIndex: 100, backgroundColor: 'rgba(0,0,0,0.85)' }}>
+            <div className="decision-panel glassmorphism" style={{ width: 'min(500px, 95vw)', background: 'linear-gradient(135deg, #1e3c72, #2a5298)', padding: '30px', borderRadius: '16px', boxShadow: '0 10px 40px rgba(0,0,0,0.8)', border: '2px solid #3498db', animation: 'popIn 0.3s ease-out' }}>
+                <div style={{ textAlign: 'center', marginBottom: '25px' }}>
+                    <div style={{ display: 'inline-block', background: 'rgba(52, 152, 219, 0.3)', padding: '4px 12px', borderRadius: '20px', color: '#85c1e9', fontSize: '0.9rem', fontWeight: 'bold', marginBottom: '10px' }}>
+                        🤔 LỰA CHỌN QUYẾT ĐỊNH
+                    </div>
+                    <h2 style={{ color: 'white', margin: '0 0 10px 0', fontSize: '1.8rem', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>{activeDecision.title}</h2>
+                    <p style={{ color: '#ecf0f1', fontSize: '1.1rem', margin: '0', lineHeight: '1.5' }}>{activeDecision.desc}</p>
+                </div>
+
+                <div className="decision-options" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {activeDecision.choices.map((c, idx) => {
+                        const disabled = c.condition ? !c.condition(players[activeDecision.pIndex]) : false;
+                        
+                        let bgColor = 'linear-gradient(to bottom, #95a5a6, #7f8c8d)'; // default safe
+                        if (c.style === 'danger') bgColor = 'linear-gradient(to bottom, #e74c3c, #c0392b)';
+                        if (c.style === 'buy') bgColor = 'linear-gradient(to bottom, #2ecc71, #27ae60)';
+
+                        return (
+                            <button 
+                                key={idx} 
+                                className="btn" 
+                                style={{ 
+                                    padding: '16px', background: bgColor, border: 'none', color: 'white', 
+                                    borderRadius: '10px', cursor: disabled ? 'not-allowed' : 'pointer',
+                                    fontSize: '1.1rem', fontWeight: 'bold', textAlign: 'left',
+                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                    opacity: disabled ? 0.5 : 1, transition: 'all 0.2s', boxShadow: '0 4px 10px rgba(0,0,0,0.3)'
+                                }}
+                                disabled={disabled}
+                                onClick={() => submitDecision(idx)}
+                            >
+                                <span>{c.text}</span>
+                                {c.style === 'danger' && <span style={{ fontSize: '1.4rem' }}>⚠️</span>}
+                                {c.style === 'buy' && <span style={{ fontSize: '1.4rem' }}>💰</span>}
+                                {c.style === 'safe' && <span style={{ fontSize: '1.4rem' }}>🛡️</span>}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+          </div>
       )}
     </div>
   );
-}
-
-function QuizModal({ activeQuiz, submitQuizAnswer, pName }) {
-   const [timeLeft, setTimeLeft] = useState(activeQuiz.timeRemaining);
-   const [result, setResult] = useState(null); // 'correct', 'wrong', 'timeout'
-
-   useEffect(() => {
-       if (result !== null) return;
-       setTimeLeft(activeQuiz.timeRemaining);
-       
-       const tick = setInterval(() => {
-           setTimeLeft(prev => {
-               if (prev <= 1) {
-                   clearInterval(tick);
-                   setResult('timeout');
-                   setTimeout(() => submitQuizAnswer(-1), 1500);
-                   return 0;
-               }
-               return prev - 1;
-           });
-       }, 1000);
-
-       return () => clearInterval(tick);
-   }, [activeQuiz, result, submitQuizAnswer]);
-
-   const { questionObj, card } = activeQuiz;
-
-   const handleAnswer = (idx) => {
-       if (result !== null) return; // Prevent multiple clicks
-       const isCorrect = idx === questionObj.correctIndex;
-       setResult(isCorrect ? 'correct' : 'wrong');
-       setTimeout(() => submitQuizAnswer(idx), 1500);
-   };
-
-   let subtitle = 'Trả lời đúng để thoát Tù!';
-   if (card) {
-       subtitle = `Thẻ Rút: "${card.title}" - ${card.text}`;
-   }
-
-   return (
-       <div className="ui-overlay quiz-overlay glassmorphism" style={{ zIndex: 100, backgroundColor: 'rgba(0,0,0,0.8)' }}>
-           <div className="quiz-panel glassmorphism" style={{ width: 'min(450px, 95vw)', maxHeight: '95dvh', overflowY: 'auto', position: 'relative', background: 'linear-gradient(135deg, #2c3e50, #34495e)', padding: 'clamp(14px, 4vw, 24px)', borderRadius: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', border: '2px solid #f1c40f', animation: 'popIn 0.3s ease-out' }}>
-               
-               {result && (
-                   <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: result === 'correct' ? 'rgba(46, 204, 113, 0.9)' : 'rgba(231, 76, 60, 0.9)', zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column', animation: 'popIn 0.2s ease' }}>
-                       <div style={{ fontSize: '5rem' }}>{result === 'correct' ? '✅' : (result === 'timeout' ? '⏰' : '❌')}</div>
-                       <h1 style={{ color: 'white', margin: '10px 0', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
-                           {result === 'correct' ? 'CHÍNH XÁC!' : (result === 'timeout' ? 'HẾT GIỜ!' : 'SAI MẤT RỒI!')}
-                       </h1>
-                   </div>
-               )}
-
-               <div className="quiz-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                   <h2 style={{ margin: 0, color: '#f1c40f', textShadow: '0 2px 4px rgba(0,0,0,0.5)', fontSize: 'clamp(0.9rem, 4vw, 1.4rem)' }}>🧠 Giải Toán {activeQuiz.type === 'gojail' ? 'Kháng Cáo' : 'Nhận Thưởng'}!</h2>
-                   <div className="quiz-timer" style={{ 
-                       fontSize: 'clamp(14px, 4vw, 24px)', fontWeight: 'bold', 
-                       color: timeLeft <= 5 ? '#e74c3c' : '#2ecc71',
-                       background: 'rgba(0,0,0,0.5)', padding: '4px 10px', borderRadius: '8px',
-                       border: `1px solid ${timeLeft <= 5 ? '#e74c3c' : '#2ecc71'}`,
-                       whiteSpace: 'nowrap', flexShrink: 0
-                   }}>
-                       ⏱ {timeLeft}s
-                   </div>
-               </div>
-
-               <div style={{ padding: '16px', background: 'rgba(0,0,0,0.3)', borderRadius: '12px', margin: '20px 0', textAlign: 'center', border: '1px solid rgba(255,255,255,0.1)' }}>
-                   <div style={{ fontSize: '1rem', marginBottom: '10px', color: '#bdc3c7' }}>
-                       Lượt của <b style={{ color: 'white' }}>{pName}</b> <br/>
-                       <span style={{ color: '#f1c40f' }}>{subtitle}</span>
-                   </div>
-                   <div style={{ fontSize: 'clamp(1.8rem, 8vw, 3rem)', fontWeight: '900', letterSpacing: '2px', color: '#fff', textShadow: '0 4px 10px rgba(0,0,0,0.5)' }}>
-                       {questionObj.question}
-                   </div>
-               </div>
-
-               <div className="quiz-options" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                   {questionObj.answers.map((ans, idx) => (
-                       <button 
-                           key={idx} 
-                           className="btn btn-buy" 
-                           style={{ 
-                               fontSize: 'clamp(1rem, 5vw, 1.8rem)', padding: 'clamp(10px, 3vw, 20px)', background: 'linear-gradient(to bottom, #4aa3df, #2980b9)', 
-                               border: 'none', color: 'white', borderRadius: '10px', cursor: 'pointer',
-                               boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
-                           }}
-                           onClick={() => handleAnswer(idx)}
-                       >
-                           {ans}
-                       </button>
-                   ))}
-               </div>
-           </div>
-       </div>
-   );
 }

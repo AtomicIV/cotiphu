@@ -192,13 +192,41 @@ export function decideUpgrade(tile, currentLevel, player, personality, difficult
 }
 
 /**
- * Xác suất bot trả lời đúng quiz theo độ khó toán + độ khó bot
+ * Bot quyết định lựa chọn trong Sự kiện
  */
-export function getBotQuizCorrectChance(mathDifficulty, difficulty) {
-    const base = difficulty?.quizCorrectBase ?? 0.65;
-    // Giảm xác suất theo độ khó toán học
-    const mathPenalty = (mathDifficulty - 1) * 0.07;
-    return Math.max(0.15, Math.min(0.97, base - mathPenalty));
+export function decideEvent(choices, player, personality, difficulty) {
+    // Return index of the choice
+    // Tham lam: thích 'danger', Thận trọng: thích 'safe'
+    const isGreedy = personality?.id === 'aggressive' || personality?.id === 'creeper';
+    const isSafe = personality?.id === 'conservative' || personality?.id === 'minion';
+    
+    // Fallback if bot has no money for a condition
+    const validChoices = choices.map((c, i) => ({...c, index: i})).filter(c => !c.disabled);
+    
+    if (validChoices.length === 0) return -1;
+    if (validChoices.length === 1) return validChoices[0].index;
+
+    // Tính điểm cho mỗi lựa chọn
+    let bestChoice = validChoices[0];
+    let maxScore = -999;
+
+    for (const c of validChoices) {
+        let score = 0;
+        if (c.style === 'danger') score += isGreedy ? 50 : -20;
+        if (c.style === 'safe') score += isSafe ? 50 : 0;
+        if (c.style === 'buy') score += (personality?.id === 'strategic' || personality?.id === 'ironman') ? 30 : 0;
+
+        // Thêm nhiễu theo độ khó
+        const noise = (difficulty?.decisionNoise ?? 0.2) * (Math.random() - 0.5) * 40;
+        score += noise;
+
+        if (score > maxScore) {
+            maxScore = score;
+            bestChoice = c;
+        }
+    }
+
+    return bestChoice.index;
 }
 
 /**
