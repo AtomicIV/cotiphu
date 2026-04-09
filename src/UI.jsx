@@ -235,7 +235,30 @@ export default function UI() {
         </div>
         
         {!isStatsCollapsed && players.map((p, idx) => {
-            const isActive = idx === turn;
+            const isActive = idx === turn && gameState === 'playing';
+            
+            // Tính toán chỉ số của Player
+            let propertyCount = 0;
+            let totalRentPower = 0;
+            if (!p.bankrupt) {
+                const ownedTiles = Object.entries(ownership).filter(([id, data]) => data.pIndex === p.id);
+                propertyCount = ownedTiles.length;
+                ownedTiles.forEach(([id, data]) => {
+                    const tile = tiles.find(t => t.id === parseInt(id));
+                    if (tile && (tile.type === 'property' || tile.type === 'station')) {
+                        let rent = tile.rent * Math.pow(2, data.level - 1);
+                        if (tile.color) {
+                            const sameColor = tiles.filter(t => t.type === 'property' && t.color === tile.color);
+                            const isMonopoly = sameColor.length > 0 && sameColor.every(t => ownership[t.id]?.pIndex === p.id);
+                            if (isMonopoly) rent *= 2;
+                        }
+                        if (p.shapeId === 2) rent = Math.floor(rent * 1.25); // Huggy Wuggy
+                        totalRentPower += rent;
+                    }
+                });
+            }
+            const stats = { propertyCount, totalRentPower };
+
             return (
                 <div key={p.id} className={`player-card ${isActive ? 'active' : ''} ${p.bankrupt ? 'bankrupt' : ''}`}
                      style={{ borderLeft: `6px solid ${p.color}` }}>
@@ -256,9 +279,21 @@ export default function UI() {
                             {isActive && <span className="player-badge">Đang đi...</span>}
                         </div>
                     </h3>
-                    <div className="money-display" style={{ color: p.money < 0 ? '#e74c3c' : '#27ae60' }}>
+                    <div className="money-display" style={{ color: p.money <= 0 ? '#e74c3c' : '#27ae60' }}>
                         {p.money} Tỷ {p.inJail && <span className="jail-badge">(Đang ở tù)</span>}
                     </div>
+                    
+                    {/* Stats Display */}
+                    {!p.bankrupt && (
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '6px', fontSize: '0.8rem', color: '#bdc3c7', background: 'rgba(0,0,0,0.2)', padding: '4px 8px', borderRadius: '4px' }}>
+                            <div title="Số lượng Bất Động Sản đang sở hữu">
+                                🏡: <b>{stats.propertyCount}</b>
+                            </div>
+                            <div title="Tổng tiềm năng thu tiền thuê (nếu đối thủ dẫm lên tất cả)">
+                                💸 Lực Thuê: <b style={{ color: '#f1c40f' }}>{stats.totalRentPower} Tỷ</b>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )
         })}
