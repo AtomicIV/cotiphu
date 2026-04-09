@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { PLAYER_NAMES, PLAYER_ICONS } from './constants';
 import { useStore } from './store';
 import { initAudio, setMute, startBGM, getMute, setSfxVolume, setBgmVolume } from './audioEngine';
+import { BOT_PERSONALITIES, BOT_DIFFICULTIES } from './botAI';
 
 export default function UI() {
   const state = useStore();
@@ -15,13 +16,13 @@ export default function UI() {
 
   const [setupList, setSetupList] = useState([
      { name: 'Tôi', type: 'human', shapeId: 0 },
-     { name: 'Máy', type: 'bot', shapeId: 1 }
+     { name: 'Máy', type: 'bot', shapeId: 1, personality: 'strategic' }
   ]);
 
   const [setupConfig, setSetupConfig] = useState({
       startingMoney: 30,
       goBonus: 5,
-      botBuyChance: 0.8,
+      botDifficulty: 'medium',
       gameSpeed: 1,
       mathDifficulty: 3,
       mathTimeout: 15,
@@ -64,7 +65,7 @@ export default function UI() {
   if (gameState === 'setup') {
       const addPlayer = () => {
           if (setupList.length < 12) {
-              setSetupList([...setupList, { name: `Người chơi ${setupList.length+1}`, type: 'bot', shapeId: setupList.length % 8 }]);
+              setSetupList([...setupList, { name: `Người chơi ${setupList.length+1}`, type: 'bot', shapeId: setupList.length % 8, personality: 'strategic' }]);
           }
       };
       
@@ -96,8 +97,12 @@ export default function UI() {
                           <input type="number" step="1" value={setupConfig.goBonus} onChange={e => updateCfg('goBonus', Number(e.target.value))} />
                       </div>
                       <div className="config-item">
-                          <label>🤖 Tỉ lệ Bot mua nhà (0 - 1.0)</label>
-                          <input type="number" step="0.1" min="0" max="1" value={setupConfig.botBuyChance} onChange={e => updateCfg('botBuyChance', Number(e.target.value))} />
+                          <label>🤖 Độ khó Bot AI</label>
+                          <select value={setupConfig.botDifficulty} onChange={e => updateCfg('botDifficulty', e.target.value)}>
+                              {Object.values(BOT_DIFFICULTIES).map(d => (
+                                  <option key={d.id} value={d.id}>{d.name} — {d.desc}</option>
+                              ))}
+                          </select>
                       </div>
                       <div className="config-item">
                           <label>🚀 Tốc độ Game (1x - 20x)</label>
@@ -154,20 +159,38 @@ export default function UI() {
                       
                       <div className="player-list-scroll">
                       {setupList.map((p, i) => (
-                          <div key={i} className="player-row">
+                          <div key={i} className="player-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
                               <span>#{i+1}</span>
                               <input 
                                   value={p.name} 
                                   onChange={e => updatePlayer(i, 'name', e.target.value)}
-                                  placeholder="Tên" 
+                                  placeholder="Tên"
+                                  style={{ minWidth: '70px', flex: '1' }}
                               />
                               <select 
                                   value={p.type} 
-                                  onChange={e => updatePlayer(i, 'type', e.target.value)} 
+                                  onChange={e => {
+                                      updatePlayer(i, 'type', e.target.value);
+                                      if (e.target.value === 'bot' && !p.personality) {
+                                          updatePlayer(i, 'personality', 'strategic');
+                                      }
+                                  }} 
                               >
                                   <option value="human">👤 Người</option>
                                   <option value="bot">🤖 Máy</option>
                               </select>
+                              {p.type === 'bot' && (
+                                  <select
+                                      value={p.personality || 'strategic'}
+                                      onChange={e => updatePlayer(i, 'personality', e.target.value)}
+                                      title="Tính cách Bot"
+                                      style={{ fontSize: '0.78rem', padding: '4px 6px', background: 'rgba(52,73,94,0.9)', color: 'white', border: '1px solid #7f8c8d', borderRadius: '6px' }}
+                                  >
+                                      {Object.values(BOT_PERSONALITIES).map(per => (
+                                          <option key={per.id} value={per.id}>{per.name}</option>
+                                      ))}
+                                  </select>
+                              )}
                               <select 
                                   className="shape-select"
                                   value={p.shapeId} 
@@ -233,7 +256,14 @@ export default function UI() {
                      style={{ borderLeft: `6px solid ${p.color}` }}>
                     <h3>
                         <span>{p.icon} {p.name} {p.bankrupt && '💀'}</span>
-                        {isActive && <span className="player-badge">Đang đi...</span>}
+                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                            {p.type === 'bot' && p.personality && (
+                                <span style={{ fontSize: '0.65rem', background: 'rgba(155,89,182,0.35)', border: '1px solid rgba(155,89,182,0.6)', borderRadius: '8px', padding: '1px 6px', color: '#c39bd3', fontWeight: 600 }}>
+                                    {p.personality.name}
+                                </span>
+                            )}
+                            {isActive && <span className="player-badge">Đang đi...</span>}
+                        </div>
                     </h3>
                     <div className="money-display" style={{ color: p.money < 0 ? '#e74c3c' : '#27ae60' }}>
                         {p.money} Tỷ {p.inJail && <span className="jail-badge">(Đang ở tù)</span>}
@@ -310,10 +340,32 @@ export default function UI() {
                     Tới lượt của {currentP.name}
                 </div>
                 
+                {currentP?.inJail ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                        <div style={{ fontSize: '0.75rem', color: '#e74c3c', fontWeight: 600, textAlign: 'center', maxWidth: '120px' }}>
+                            🔒 Lắc <b>1</b> hoặc <b>6</b> để ra tù!
+                        </div>
+                        <button
+                            className="btn btn-roll"
+                            onClick={handleRollClick}
+                            disabled={isMoving || state.isRollingDice}
+                            style={{
+                                width: '80px', height: '80px', borderRadius: '50%', padding: 0,
+                                display: 'flex', justifyContent: 'center', alignItems: 'center',
+                                fontSize: '3rem', border: '4px solid #e74c3c', alignSelf: 'flex-end',
+                                background: 'linear-gradient(135deg, #922b21, #e74c3c)',
+                                boxShadow: '0 8px 25px rgba(231, 76, 60, 0.6)'
+                            }}
+                            title="Thử Phá Gông (chỉ ra tù khi lắc 1 hoặc 6)"
+                        >
+                            🎲
+                        </button>
+                    </div>
+                ) : (
                 <button 
                     className="btn btn-roll" 
                     onClick={handleRollClick}
-                    disabled={isMoving || state.isRollingDice || currentP?.type === 'bot' || activeQuiz != null}
+                    disabled={isMoving || state.isRollingDice || currentP?.type === 'bot' || activeQuiz != null || currentP?.inJail}
                     style={{ 
                         width: '80px', 
                         height: '80px', 
@@ -331,6 +383,7 @@ export default function UI() {
                 >
                     🎲
                 </button>
+                )}
             </div>
         )}
       </div>

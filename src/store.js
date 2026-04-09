@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { TILES, GAME_CONFIG, PLAYER_COLORS, PLAYER_ICONS } from './constants';
 import { playRoll, playCoin, playNegative, playUpgrade, playJackpot } from './audioEngine';
 import { generateMathQuiz } from './mathLogic';
+import { BOT_PERSONALITIES, BOT_DIFFICULTIES, decideBuy, decideUpgrade, getBotQuizCorrectChance, getBotThinkDelay } from './botAI';
 
 export const useStore = create((set, get) => ({
   gameState: 'setup', // 'setup' | 'playing'
@@ -13,6 +14,7 @@ export const useStore = create((set, get) => ({
       startingMoney: 1500,
       goBonus: 200,
       botBuyChance: 0.8,
+      botDifficulty: 'medium',
       mathDifficulty: 3,
       mathTimeout: 15
   },
@@ -50,6 +52,7 @@ export const useStore = create((set, get) => ({
         id: i,
         name: p.name || `Người chơi ${i+1}`,
         type: p.type,
+        personality: p.type === 'bot' ? (BOT_PERSONALITIES[p.personality] || BOT_PERSONALITIES.strategic) : null,
         shapeId: p.shapeId !== undefined ? p.shapeId : i,
         money: config ? config.startingMoney : 30,
         pos: 0,
@@ -160,8 +163,11 @@ export const useStore = create((set, get) => ({
 
     const roll = Math.floor(Math.random() * 6) + 1;
     
+    const rollMsg = p.inJail
+        ? `🎲 ${p.name} lắc xúc xắc thử phá gông, ra số ${roll}...`
+        : `🎲 ${p.name} tung xúc xắc và di chuyển ${roll} bước...`;
     set({ isRollingDice: true, currentRoll: roll, shootOrigin: p.pos });
-    get().addLog(`🎲 ${p.name} tung xúc xắc và di chuyển ${roll} bước...`);
+    get().addLog(rollMsg);
     playRoll();
     
     // 0.3s sau thì tia laze mờ dần
@@ -284,12 +290,19 @@ export const useStore = create((set, get) => ({
         } else if (ownerData === undefined) {
             // Đất trống -> Mua mới
             if (p.type === 'bot') {
-                if (p.money >= tile.basePrice && Math.random() < get().gameConfig.botBuyChance) {
-                    get().buyPropertyDirect(pIndex, tile);
+                const botDiff = BOT_DIFFICULTIES[get().gameConfig.botDifficulty] || BOT_DIFFICULTIES.medium;
+                const shouldBuy = decideBuy(tile, p, state.ownership, state.players, p.personality, botDiff);
+                if (shouldBuy) {
+                    const thinkDelay = getBotThinkDelay(botDiff, get().gameSpeed);
+                    setTimeout(() => {
+                        addLog(`🤖 ${p.name} phân tích và quyết định MUA ${tile.name}!`);
+                        get().buyPropertyDirect(pIndex, tile);
+                        get().endTurn();
+                    }, thinkDelay);
                 } else {
-                    addLog(`⏭️ ${p.name} (Bot) bỏ qua ${tile.name}.`);
+                    addLog(`⏭️ ${p.name} (Bot) đánh giá và bỏ qua ${tile.name}.`);
+                    get().endTurn();
                 }
-                get().endTurn();
             } else {
                 set({ pendingPurchase: { pIndex, cell: tile } });
             }
@@ -298,12 +311,19 @@ export const useStore = create((set, get) => ({
             if (ownerData.level < 3) {
                 const upgradeCost = Math.floor(tile.basePrice * 1.5);
                 if (p.type === 'bot') {
-                    if (p.money >= upgradeCost && Math.random() < get().gameConfig.botBuyChance) {
-                        get().upgradePropertyDirect(tile.id, upgradeCost);
+                    const botDiff = BOT_DIFFICULTIES[get().gameConfig.botDifficulty] || BOT_DIFFICULTIES.medium;
+                    const shouldUpgrade = decideUpgrade(tile, ownerData.level, p, p.personality, botDiff);
+                    if (shouldUpgrade) {
+                        const thinkDelay = getBotThinkDelay(botDiff, get().gameSpeed);
+                        setTimeout(() => {
+                            addLog(`🏗️ ${p.name} quyết định NÂNG CẤP ${tile.name} lên Cấp ${ownerData.level + 1}!`);
+                            get().upgradePropertyDirect(tile.id, upgradeCost);
+                            get().endTurn();
+                        }, thinkDelay);
                     } else {
-                        addLog(`⏭️ ${p.name} (Bot) không xây thêm tại ${tile.name}.`);
+                        addLog(`⏭️ ${p.name} (Bot) giữ nguyên ${tile.name} (không đủ lợi).`);
+                        get().endTurn();
                     }
-                    get().endTurn();
                 } else {
                     set({ pendingUpgrade: { pIndex, cell: tile, currentLevel: ownerData.level, upgradeCost } });
                 }
@@ -418,18 +438,20 @@ export const useStore = create((set, get) => ({
       if (!state.activeQuiz) return;
       const p = state.players[state.activeQuiz.pIndex];
       if (p.type === 'bot') {
-          // Bot takes 2-3 seconds to answer
+          const botDiff = BOT_DIFFICULTIES[state.gameConfig.botDifficulty] || BOT_DIFFICULTIES.medium;
+          const mathDiff = state.gameConfig.mathDifficulty || 3;
+          const chanceCorrect = getBotQuizCorrectChance(mathDiff, botDiff);
+          const thinkDelay = getBotThinkDelay(botDiff, state.gameSpeed);
+          
           setTimeout(() => {
               const stillActive = get().activeQuiz;
               if (stillActive && stillActive.pIndex === p.id) {
-                  // Probability of answering correct based on difficulty
-                  const diff = get().gameConfig.mathDifficulty || 3;
-                  // Base 95% for grade 1, drops by 10% per grade. Grade 6 = 45%
-                  const chanceCorrect = 1.0 - (diff * 0.1); 
                   const isCorrect = Math.random() < chanceCorrect;
+                  const emoji = isCorrect ? '🧠' : '😵';
+                  get().addLog(`${emoji} ${p.name} (Bot ${botDiff.name}) đang giải toán...`);
                   get().submitQuizAnswer(isCorrect ? stillActive.questionObj.correctIndex : -1);
               }
-          }, 2000 / state.gameSpeed);
+          }, thinkDelay);
       }
   },
 
