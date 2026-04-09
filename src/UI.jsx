@@ -10,7 +10,7 @@ export default function UI() {
       gameState, players, turn, currentRoll, isMoving, rollDice, tiles,
       pendingPurchase, buyPropertyInteraction, skipPurchase, log, ownership, gameSpeed, toggleSpeed,
       pendingUpgrade, upgradePropertyInteraction, skipUpgrade,
-      jackpotPool, submitDecision, activeDecision, activeMarketEvent, roundCount
+      jackpotPool, submitDecision, activeDecision, activeMarketEvent, roundCount, winner
   } = state;
 
   const [setupList, setSetupList] = useState([
@@ -476,6 +476,24 @@ export default function UI() {
                     })}
                 </div>
             </div>
+          </div>
+      )}
+
+      {/* Game Over Modal */}
+      {gameState === 'gameover' && winner && (
+          <div className="ui-overlay glassmorphism" style={{ zIndex: 200, backgroundColor: 'rgba(0,0,0,0.9)' }}>
+             <div className="glassmorphism" style={{ textAlign: 'center', background: 'linear-gradient(135deg, #f1c40f, #f39c12)', padding: '50px 80px', borderRadius: '24px', boxShadow: '0 0 50px rgba(241,196,15,0.6)', border: '4px solid #fff', color: '#fff', animation: 'popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)' }}>
+                 <h1 style={{ fontSize: '4rem', margin: '0 0 10px 0', textShadow: '0 4px 8px rgba(0,0,0,0.3)' }}>🎉 CHÚC MỪNG 🎉</h1>
+                 <div style={{ fontSize: '6rem', margin: '20px 0', filter: 'drop-shadow(0 10px 10px rgba(0,0,0,0.5))' }}>🏆</div>
+                 <h2 style={{ fontSize: '2.5rem', margin: '0 0 10px 0', textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>{winner.name} đã vô địch!</h2>
+                 <p style={{ fontSize: '1.2rem', margin: '0 0 30px 0', opacity: 0.9 }}>Tất cả các đối thủ khác đã phá sản. Bạn là tỷ phú duy nhất còn trụ lại!</p>
+                 <button 
+                    className="btn btn-buy" 
+                    onClick={() => window.location.reload()} 
+                    style={{ fontSize: '1.5rem', padding: '15px 40px', borderRadius: '50px', background: '#34495e', border: '2px solid #2c3e50', boxShadow: '0 8px 20px rgba(0,0,0,0.4)', textTransform: 'uppercase' }}>
+                    Chơi Lại Ván Mới
+                 </button>
+             </div>
           </div>
       )}
     </div>

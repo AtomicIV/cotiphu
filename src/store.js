@@ -147,7 +147,7 @@ export const useStore = create((set, get) => ({
       const activePlayers = get().players.filter(p => !p.bankrupt);
       if (activePlayers.length === 1) {
           get().addLog(`🏆 ${activePlayers[0].name} ĐÃ CHIẾN THẮNG TRÒ CHƠI!`);
-          // end game logic can be added here
+          set({ gameState: 'gameover', winner: activePlayers[0] });
       }
   },
 
